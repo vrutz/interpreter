@@ -4,23 +4,23 @@ import scala.meta.dialects.Scala211
 
 class TestSuite extends FunSuite {
 	test("foo") {
-		def findGet(tree: Tree): Unit = tree match {
+		def findGet(tree: Tree): Unit ={ println(tree); tree match {
 			case q"..$mods object $name extends $template" => findGet(template)
 			case template"{ ..$stats0 } with ..$ctorcalls { $param => ..$stats1 }" => stats1.map(findGet)
 			case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" => findGet(expr)
 			case q"..$mods val ..$pats: $tpeopt = $expr" => findGet(expr)
 
 			// Literals: Nothing to do here
-			case q"$bool" => 
-			case q"$byte" =>
-			case q"$short" =>
-			case q"$int" =>
-			case q"$long" =>
-			case q"$float" =>
-			case q"$double" =>
-			case q"$char" =>
-			case q"$str" =>
-			case q"$symbol" =>
+			// case q"$bool" => 
+			// case q"$byte" =>
+			// case q"$short" =>
+			// case q"$int" =>
+			// case q"$long" =>
+			// case q"$float" =>
+			// case q"$double" =>
+			// case q"$char" =>
+			// case q"$str" =>
+			// case q"$symbol" =>
 			case q"null" =>
 			case q"()" =>
 
@@ -58,12 +58,12 @@ class TestSuite extends FunSuite {
 			case q"new { ..$stat } with ..$exprs { $param => ..$stats }" => stat.map(findGet); exprs.map(findGet); stats.map(findGet)
 			case q"_" =>
 			case q"$expr _" => findGet(expr)
-			case q"$lit" => findGet(lit)
+			// case q"$lit" => findGet(lit)
 
 			// Arguments (meta.Term.Arg)
-			case qarg"$name = $expr" => findGet(expr)
-			case qarg"$expr: _*" => findGet(expr)
-			case qarg"$expr" => findGet(expr)
+			// case qarg"$name = $expr" => findGet(expr)
+			// case qarg"$expr: _*" => findGet(expr)
+			// case qarg"$expr" => findGet(expr)
 
 			// Types (meta.Type)
 			// Arguments Types (meta.Type.Arg)
@@ -75,21 +75,23 @@ class TestSuite extends FunSuite {
 			case p"$pat0 | $pat1" =>
 			case p"(..$pats)" =>
 			case p"$ref[..$tpes](..$apats)" =>
+			case p"$pat $name (..$apats)" =>
+			// case p""" $name"$${..$pats}" """ => 
 			case p"case $pat if $expropt => $expr" => findGet(expropt); findGet(expr)
 
 			// Default: Just print so we know there is a case missing
 			case _ => println("Default case")
 				      println(tree)
-		}
+		}}
 
 
 		findGet("""
-			object O {
-				def main(args: Array[String]) {
-					val x = Some(42)
-					x.get
-				}
-			}
-			""".parse[Stat])
+			|object O {
+			|	def main(args: Array[String]) {
+			|		val x = Some(42)
+			|		x.get
+			|	}
+			|}
+			""".stripMargin.parse[Stat])
 	}
 }
