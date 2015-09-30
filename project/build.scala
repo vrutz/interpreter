@@ -3,7 +3,7 @@ import Keys._
 
 object build extends Build {
   lazy val ScalaVersion = "2.11.7"
-  lazy val LibraryVersion = "0.0.3"
+  lazy val LibraryVersion = "0.1.0-SNAPSHOT"
   lazy val root = Project(
     id = "root",
     base = file("root")
@@ -20,7 +20,7 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    libraryDependencies += "org.scalameta" %% "scalameta" % "0.0.3"
+    libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT"
   )
 
   lazy val tests = Project(
