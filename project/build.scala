@@ -10,6 +10,7 @@ object build extends Build {
   ) settings (
     sharedSettings : _*
   ) settings (
+    run in Compile := (run in interpreter in Compile).evaluated,
     test in Test := (test in tests in Test).value
   ) aggregate (interpreter, tests)
 
