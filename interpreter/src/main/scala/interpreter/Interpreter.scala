@@ -1,8 +1,9 @@
+package interpreter
+
 import scala.meta._
 import scala.meta.tql._
-import scala.meta.dialects.Scala211
 
-object Finder {
+object Interpreter {
 
 	def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
 		case t @ q"$expr.$name" if name.toString == toFind =>
