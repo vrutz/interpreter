@@ -5,4 +5,4 @@ package interpreter
  */
 
 
-final class Environment(stack: CallStack, objects: TopLevelObjects)
+final class Environment(stack: CallStack)//, objects: TopLevelObjects)

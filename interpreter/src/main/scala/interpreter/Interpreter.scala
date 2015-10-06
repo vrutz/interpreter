@@ -6,14 +6,18 @@ import scala.meta.tql._
 
 object Interpreter {
 
-//  def evaluate(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
-////    case q"$v1 + $v2" => (evaluate(v1, env)._1 + evaluate(v2, env)._1, env)
-//    case name: Term.Name =>
-//      val defn: Member.Term = name.defn
-//      defn
-//      (NullLit, env)
-//    case t => (NullLit, env)
-//  }
+  def evaluate(terms: Seq[Tree], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
+    (List[Value](), env)
+  }
+
+  def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
+    case q"$expr $name[..$tpes] (..$aexprs)" =>
+      val (ev1,  env1) = evaluate(expr, env)
+      val (ev2s, env2) = evaluate(aexprs, env1)
+      val infixDef = name.defn
+      (???, env2)
+    case t => (Literal(null), env)
+  }
 
 	def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
 		case t @ q"$expr.$name" if name.toString == toFind =>
