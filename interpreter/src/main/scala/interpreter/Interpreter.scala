@@ -6,7 +6,11 @@ import scala.meta.tql._
 object Interpreter {
 
   def evaluate(terms: Seq[Tree], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
-    (List[Value](), env)
+    terms.foldRight(List[Value](), env) {
+      case (expr, (evaluatedExprs, newEnv)) =>
+        val (newEvaluatedExpr, envToKeep) = evaluate(expr, newEnv)
+        (evaluatedExprs ::: List(newEvaluatedExpr), envToKeep)
+    }
   }
 
   def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
@@ -27,12 +31,12 @@ object Interpreter {
           val defParamsExprs: Seq[Tree] = p.unzip._2.takeRight(p.length - ev2s.length).map(_.get)
 
           val paramsWithExpr = (p.unzip._1 zip (justArgExprs ++ defParamsExprs)).toMap
-
-          ((expr: Tree) transform {
-              case name: Term.Name if paramsWithExpr.exists { case (n: Term.Param.Name, _) => n.toString == name.toString } =>
-                paramsWithExpr(name)
-              case q"this" => expr
-            }).asInstanceOf[Tree]
+          ???
+//          ((expr: Tree) transform {
+//              case name: Term.Name if paramsWithExpr.exists { case (n: Term.Param.Name, _) => n.toString == name.toString } =>
+//                paramsWithExpr(name)
+//              case q"this" => expr
+//            }).asInstanceOf[Tree]
       }
       // Replace type parameters in body of the function with tpes
       // Replace arguments in the body of the function with ev2s
