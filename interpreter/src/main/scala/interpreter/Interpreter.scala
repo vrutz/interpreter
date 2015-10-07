@@ -1,7 +1,6 @@
 package interpreter
 
 import scala.meta._
-import scala.meta.semantic._
 import scala.meta.tql._
 
 object Interpreter {
@@ -13,8 +12,14 @@ object Interpreter {
   def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
     case q"$expr $name[..$tpes] (..$aexprs)" =>
       val (ev1,  env1) = evaluate(expr, env)
-      val (ev2s, env2) = evaluate(aexprs, env1)
-      val infixDef = name.defn
+      val (ev2s: Seq[Value], env2: Environment) = evaluate(aexprs, env1)
+      name.defn match {
+        case q"..$mods def $name[..$tparams](...$paramss): $tpeopt = $expr" => println(paramss)
+        case _ => println("Should not happen")
+      }
+      // Replace type parameters in body of the function with tpes
+      // Replace arguments in the body of the function with ev2s
+      // Evaluate the transformed tree with env2
       (???, env2)
     case t => (Literal(null), env)
   }
@@ -25,15 +30,5 @@ object Interpreter {
 			find(toFind)(expr)
 		case t: Term.Name if t.toString == toFind =>
 			println(s"Found one $toFind in expression: $t")
-	}
-
-	def main(args: Array[String]): Unit = {
-     println("""
-			|object O {
-			|	def main(args: Array[String]) {
-			|		1 + 2
-			|	}
-			|}
-			""".stripMargin.parse[Stat].show[Structure])
 	}
 }
