@@ -18,7 +18,7 @@ object Interpreter {
       }
       val (ev1,  env1) = evaluate(expr, env)
       val (ev2s: Seq[Value], env2: Environment) = evaluate(aexprs: Seq[Term.Arg], env1)
-      name.defn match {
+      val substExpr: Tree = name.defn match {
         case q"..$mods def $name[..$tparams](...$paramss): $tpeopt = $expr" =>
           val p: Seq[(Term.Param.Name, Option[Tree])] = (paramss: Seq[Seq[Term.Param]]).flatten map {
               case param"..$mods $paramname: $atpeopt = $expropt" => (paramname: Term.Param.Name, expropt: Option[Tree])
@@ -28,20 +28,17 @@ object Interpreter {
 
           val paramsWithExpr = (p.unzip._1 zip (justArgExprs ++ defParamsExprs)).toMap
 
-          val substExpr: Tree = ((expr: Tree) transform {
+          ((expr: Tree) transform {
               case name: Term.Name if paramsWithExpr.exists { case (n: Term.Param.Name, _) => n.toString == name.toString } =>
                 paramsWithExpr(name)
               case q"this" => expr
             }).asInstanceOf[Tree]
-
-          (evaluate(substExpr, env2)._1, env2)
-
-        case _ => println("Should not happen")
       }
       // Replace type parameters in body of the function with tpes
       // Replace arguments in the body of the function with ev2s
       // Evaluate the transformed tree with env2
-      (???, env2)
+
+      (evaluate(substExpr, env2)._1, env2)
     case t => (Literal(null), env)
   }
 
