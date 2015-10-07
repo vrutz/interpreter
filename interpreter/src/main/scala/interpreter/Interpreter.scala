@@ -11,10 +11,10 @@ object Interpreter {
 
   def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
     case q"${expr: Tree} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
-      val justArgExprs: Seq[Tree] = aexprs map {
-        case arg"$name = $expr" => expr
-        case arg"$expr: _*" => expr
-        case arg"$expr" => expr
+      val justArgExprs: Seq[Tree] = (aexprs: Seq[Term.Arg]) map {
+        case arg"$name = $exp" => expr
+        case arg"$exp: _*" => expr
+        case arg"$exp" => expr
       }
       val (ev1,  env1) = evaluate(expr, env)
       val (ev2s: Seq[Value], env2: Environment) = evaluate(aexprs: Seq[Term.Arg], env1)
@@ -46,7 +46,7 @@ object Interpreter {
   }
 
 	def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
-		case t @ q"$expr.$name" if name.toString == toFind =>
+		case t @ q"$expr.$name" if (name: Term.Name).toString == toFind =>
 			println(s"Found one $toFind in expression: $t")
 			find(toFind)(expr)
 		case t: Term.Name if t.toString == toFind =>
