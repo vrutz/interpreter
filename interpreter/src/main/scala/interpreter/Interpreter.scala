@@ -14,6 +14,21 @@ object Interpreter {
   }
 
   def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
+      // Literals
+    case q"${x: Boolean}" => (Literal(x), env)
+    case q"${x: Byte}" => (Literal(x), env)
+    case q"${x: Short}" => (Literal(x), env)
+    case q"${x: Int}" => (Literal(x), env)
+    case q"${x: Long}" => (Literal(x), env)
+    case q"${x: Float}" => (Literal(x), env)
+    case q"${x: Double}" => (Literal(x), env)
+    case q"${x: Char}" => (Literal(x), env)
+    case q"${x: String}" => (Literal(x), env)
+    case q"${x: scala.Symbol}" => (Literal(x), env)
+    case q"null" => (Literal(null), env)
+    case q"()" => (Literal(()), env)
+
+    // Expressions
     case q"${expr: Tree} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
       val justArgExprs: Seq[Tree] = (aexprs: Seq[Term.Arg]) map {
         case arg"$name = $exp" => expr

@@ -9,13 +9,15 @@ sealed trait Value {
   }
 }
 
+final case class Instance(className: String) extends Value
+
 final case class Symbol(name: String) extends Value
 
 final case class Literal(value: Any) extends Value {
   override def toString = value match {
     case null => "null"
     case c: Char => s"\'$c\'"
-    case s: String => "\"" + s + "\""
+    case s: Predef.String => "\"" + s + "\""
     case v => v.toString
   }
 }
