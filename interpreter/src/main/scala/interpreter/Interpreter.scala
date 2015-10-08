@@ -1,5 +1,6 @@
 package interpreter
 
+import scala.annotation.meta.param
 import scala.meta._
 import scala.meta.tql._
 
@@ -14,7 +15,7 @@ object Interpreter {
   }
 
   def evaluate(term: Tree, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
-      // Literals
+      /* Literals */
     case q"${x: Boolean}" => (Literal(x), env)
     case q"${x: Byte}" => (Literal(x), env)
     case q"${x: Short}" => (Literal(x), env)
@@ -28,17 +29,24 @@ object Interpreter {
     case q"null" => (Literal(null), env)
     case q"()" => (Literal(()), env)
 
-    // Expressions
-    case q"this" => (env(This), env)
-    case q"${qname: Tree}.this" =>
-      val (_, instanceEnv) = evaluate(qname, env)
-      (instanceEnv(This), instanceEnv)
-    case q"super" => (env(Super), env)
+      /* Expressions */
+    // this: this | <expr>.this
+    case q"this" => (env(This()), env)
+    case q"${qname: Tree}.this" => evaluate(qname, env)
+
+    // super: super | <expr>.super | super[<expr>] | <expr>.super[<expr]
+    case q"super" => (env(Super(env(This()).asInstanceOf[Instance], None)), env)
     case q"${qname: Tree}.super" =>
-      val (_, instanceEnv) = evaluate(qname, env)
-      (instanceEnv(Super), instanceEnv)
-    case q"super[$qname]" => ???
-    case q"$qname0.super[$qname1]" => ???
+      val (instance: Instance, instanceEnv) = evaluate(qname, env)
+      (instanceEnv(Super(instance, None)), instanceEnv)
+    case q"super[${qname: Tree}]" =>
+      val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname, env)
+      (env(Super(env(This()).asInstanceOf[Instance], Some(typeToApp))), typeEnv)
+    case q"${qname0: Tree}.super[${qname1: Tree}]" =>
+      val (caller: Instance, callerEnv) = evaluate(qname0, env)
+      val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname1, callerEnv)
+      (callerEnv(Super(caller, Some(typeToApp))), typeEnv)
+
     case q"${expr: Tree} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
       val justArgExprs: Seq[Tree] = (aexprs: Seq[Term.Arg]) map {
         case arg"$name = $exp" => expr

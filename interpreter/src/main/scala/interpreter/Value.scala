@@ -9,7 +9,7 @@ sealed trait Value {
   }
 }
 
-final case class Instance(className: String) extends Value
+final case class Instance(tpe: interpreter.Type, className: String) extends Value
 
 final case class Symbol(name: String) extends Value
 
@@ -22,3 +22,5 @@ final case class Literal(value: Any) extends Value {
   }
 }
 
+sealed trait Type extends Value
+case object WildCard extends Type

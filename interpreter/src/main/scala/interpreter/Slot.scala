@@ -8,5 +8,6 @@ import scala.meta._
 
 sealed trait Slot
 final case class Local(name: Term.Name) extends Slot
-case object This extends Slot
-case object Super extends Slot
+// TODO Find something meaningful as a parameter of This(...)
+final case class This() extends Slot
+final case class Super(child: Instance, parametricType: Option[interpreter.Type]) extends Slot
