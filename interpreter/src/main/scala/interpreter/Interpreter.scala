@@ -29,6 +29,16 @@ object Interpreter {
     case q"()" => (Literal(()), env)
 
     // Expressions
+    case q"this" => (env(This), env)
+    case q"${qname: Tree}.this" =>
+      val (_, instanceEnv) = evaluate(qname, env)
+      (instanceEnv(This), instanceEnv)
+    case q"super" => (env(Super), env)
+    case q"${qname: Tree}.super" =>
+      val (_, instanceEnv) = evaluate(qname, env)
+      (instanceEnv(Super), instanceEnv)
+    case q"super[$qname]" => ???
+    case q"$qname0.super[$qname1]" => ???
     case q"${expr: Tree} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
       val justArgExprs: Seq[Tree] = (aexprs: Seq[Term.Arg]) map {
         case arg"$name = $exp" => expr
