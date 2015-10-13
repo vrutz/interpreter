@@ -47,7 +47,6 @@ object Interpreter {
 //      (callerEnv(Super), callerEnv)
 
 //    case q"${name: Term.Name}" => (env(Local(name)), env)
-      // TODO Check what type of member name is (var, val, def, marco, type, ...)
     case q"${expr: Term}.${name: Term.Name}" =>
       val (evalExpr, envExpr) = evaluate(expr, env)
       (envExpr(Local(name)), envExpr)

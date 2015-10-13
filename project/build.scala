@@ -57,6 +57,24 @@ object build extends Build {
       val classpath = sbt_classpath.map(_.data.getAbsolutePath).mkString(java.io.File.pathSeparator)
       val sourcepath = (sourceDirectory in scrutinee in Compile).value.getAbsolutePath
       Seq(s"-Dsbt.paths.scrutinee.classes=$classpath", s"-Dsbt.paths.scrutinee.sources=$sourcepath")
+    },
+    sourceDirectory in Test := {
+      val defaultValue = (sourceDirectory in Test).value
+      System.setProperty("sbt.paths.tests.sources", defaultValue.getAbsolutePath)
+      defaultValue
+    },
+    resourceDirectory in Test := {
+      val defaultValue = (resourceDirectory in Test).value
+      System.setProperty("sbt.paths.tests.resources", defaultValue.getAbsolutePath)
+      defaultValue
+    },
+    fullClasspath in Test := {
+      val defaultValue = (fullClasspath in Test).value
+      val classpath = defaultValue.files.map(_.getAbsolutePath)
+      val scalaLibrary = classpath.map(_.toString).find(_.contains("scala-library")).get
+      System.setProperty("sbt.paths.scalalibrary.classes", scalaLibrary)
+      System.setProperty("sbt.paths.tests.classes", classpath.mkString(java.io.File.pathSeparator))
+      defaultValue
     }
   ) dependsOn (interpreter)
 
