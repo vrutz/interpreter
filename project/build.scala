@@ -3,7 +3,7 @@ import Keys._
 
 object build extends Build {
   lazy val ScalaVersion = "2.11.7"
-  lazy val LibraryVersion = "0.0.4"
+  lazy val LibraryVersion = "0.1.0-SNAPSHOT"
   lazy val root = Project(
     id = "root",
     base = file("root")
@@ -20,7 +20,7 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    addCompilerPlugin("org.scalameta" % "scalahost" % "0.0.4" cross CrossVersion.full),
+    addCompilerPlugin("org.scalameta" % "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full),
     scalacOptions += "-Ybackend:GenBCode"
   )
 
@@ -30,8 +30,8 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    libraryDependencies += "org.scalameta" %% "scalameta" % "0.0.4",
-    libraryDependencies += "org.scalameta" %% "scalahost" % "0.0.4" cross CrossVersion.full,
+    libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT",
+    libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
     (fork in run) := true,
     (javaOptions in run) ++= {
         val sbt_classpath = (fullClasspath in scrutinee in Compile).value
@@ -47,8 +47,8 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    libraryDependencies += "org.scalameta" %% "scalameta" % "0.0.4",
-    libraryDependencies += "org.scalameta" %% "scalahost" % "0.0.4" cross CrossVersion.full,
+    libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT",
+    libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test",
     libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
     sourceDirectory in Test := {
