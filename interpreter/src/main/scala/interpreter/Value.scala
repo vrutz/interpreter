@@ -7,10 +7,12 @@ import scala.meta._
 sealed trait Value {
   override def toString = this match {
     case Symbol(name) => s"$name"
+    case Instance(tpe, fields) => s"$tpe"
+    case l: Literal => l.toString
   }
 }
 
-final case class Instance(tpe: meta.Type, fields: Map[Slot, Value]) extends Value
+final case class Instance(tpe: Type, fields: Map[Slot, Value]) extends Value
 
 final case class Symbol(name: String) extends Value
 

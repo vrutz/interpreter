@@ -1,8 +1,6 @@
 package interpreter
 
-import scala.annotation.meta.param
 import scala.meta._
-import scala.meta.tql._
 
 object Interpreter {
 
@@ -14,7 +12,7 @@ object Interpreter {
     }
   }
 
-  def evaluate(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = term match {
+  def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = term match {
       /* Literals */
     case q"${x: Boolean}" => (Literal(x), env)
     case q"${x: Byte}" => (Literal(x), env)
@@ -48,9 +46,19 @@ object Interpreter {
 
 //    case q"${name: Term.Name}" => (env(Local(name)), env)
     case q"${expr: Term}.${name: Term.Name}" =>
-      val (evalExpr, envExpr) = evaluate(expr, env)
-      (envExpr(Local(name)), envExpr)
-//    case q"${expr: Tree}(..${aexprs: Seq[Term.Arg]})" => ???
+      val (evalExpr: Instance, envExpr) = evaluate(expr, env)
+      name.defn match {
+        case q"..$mods val ..$pats: $tpeopt = ${expr: Term}" => (evalExpr.fields(Local(name)), envExpr)
+        case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined => (evalExpr.fields(Local(name)), envExpr)
+        case q"..$mods def $name: $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
+        case q"..$mods def $name(): $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
+      }
+
+
+
+    case q"${expr: Tree}(..$aexprs)" =>
+      // Same as infix but with method apply
+      (Instance(t"List", Map[Slot,Value]()), env)
 //    case q"$expr[..$tpes]" => ???
     case q"${expr: Term} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
       val (caller, callerEnv) = evaluate(expr, env)
@@ -102,8 +110,6 @@ object Interpreter {
         case Literal(e: Short) => Literal(~e)
         case Literal(e: Int) => Literal(~e)
         case Literal(e: Long) => Literal(~e)
-//        case Literal(e: Float) => Literal(~e)
-//        case Literal(e: Double) => Literal(~e)
       }, exprEnv)
     case q"+${expr: Term}" =>
       val (evaluatedExpr, exprEnv) = evaluate(expr, env)

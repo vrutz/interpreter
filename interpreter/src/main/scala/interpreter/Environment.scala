@@ -5,7 +5,7 @@ package interpreter
  */
 
 final class Environment(stack: CallStack) {
-  def this() = this(List[Frame]())
+  def this() = this(List[Frame](Map[Slot, Value]()))
 
   def apply(name: Slot): Value = stack.head(name)
   def +(name: Slot, value: Value): Environment = new Environment((stack.head + (name -> value)) :: stack.tail)

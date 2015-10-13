@@ -3,7 +3,7 @@ import Keys._
 
 object build extends Build {
   lazy val ScalaVersion = "2.11.7"
-  lazy val LibraryVersion = "0.1.0-SNAPSHOT"
+  lazy val LibraryVersion = "0.0.4"
   lazy val root = Project(
     id = "root",
     base = file("root")
@@ -20,7 +20,7 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    addCompilerPlugin("org.scalameta" % "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full),
+    addCompilerPlugin("org.scalameta" % "scalahost" % "0.0.4" cross CrossVersion.full),
     scalacOptions += "-Ybackend:GenBCode"
   )
 
@@ -30,8 +30,8 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT",
-    libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
+    libraryDependencies += "org.scalameta" %% "scalameta" % "0.0.4",
+    libraryDependencies += "org.scalameta" %% "scalahost" % "0.0.4" cross CrossVersion.full,
     (fork in run) := true,
     (javaOptions in run) ++= {
         val sbt_classpath = (fullClasspath in scrutinee in Compile).value
@@ -47,25 +47,13 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
-    libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT",
-    libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
+    libraryDependencies += "org.scalameta" %% "scalameta" % "0.0.4",
+    libraryDependencies += "org.scalameta" %% "scalahost" % "0.0.4" cross CrossVersion.full,
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test",
     libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
-    (fork in run) := true,
-    (javaOptions in test) ++= {
-      val sbt_classpath = (fullClasspath in scrutinee in Compile).value
-      val classpath = sbt_classpath.map(_.data.getAbsolutePath).mkString(java.io.File.pathSeparator)
-      val sourcepath = (sourceDirectory in scrutinee in Compile).value.getAbsolutePath
-      Seq(s"-Dsbt.paths.scrutinee.classes=$classpath", s"-Dsbt.paths.scrutinee.sources=$sourcepath")
-    },
     sourceDirectory in Test := {
       val defaultValue = (sourceDirectory in Test).value
-      System.setProperty("sbt.paths.tests.sources", defaultValue.getAbsolutePath)
-      defaultValue
-    },
-    resourceDirectory in Test := {
-      val defaultValue = (resourceDirectory in Test).value
-      System.setProperty("sbt.paths.tests.resources", defaultValue.getAbsolutePath)
+      System.setProperty("sbt.paths.scrutinee.sources", defaultValue.getAbsolutePath)
       defaultValue
     },
     fullClasspath in Test := {
@@ -73,7 +61,7 @@ object build extends Build {
       val classpath = defaultValue.files.map(_.getAbsolutePath)
       val scalaLibrary = classpath.map(_.toString).find(_.contains("scala-library")).get
       System.setProperty("sbt.paths.scalalibrary.classes", scalaLibrary)
-      System.setProperty("sbt.paths.tests.classes", classpath.mkString(java.io.File.pathSeparator))
+      System.setProperty("sbt.paths.scrutinee.classes", classpath.mkString(java.io.File.pathSeparator))
       defaultValue
     }
   ) dependsOn (interpreter)
