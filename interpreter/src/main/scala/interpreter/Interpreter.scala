@@ -45,6 +45,7 @@ object Interpreter {
 //      (callerEnv(Super), callerEnv)
 
 //    case q"${name: Term.Name}" => (env(Local(name)), env)
+      // Selection <expr>.<name>
     case q"${expr: Term}.${name: Term.Name}" =>
       val (evalExpr: Instance, envExpr) = evaluate(expr, env)
       name.defn match {
@@ -54,48 +55,19 @@ object Interpreter {
         case q"..$mods def $name(): $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
       }
 
-
-
+      // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
     case q"${expr: Tree}(..$aexprs)" =>
       // Same as infix but with method apply
+      evaluate(q"$expr apply (..$aexprs)", env)
       (Instance(t"List", Map[Slot,Value]()), env)
 //    case q"$expr[..$tpes]" => ???
-    case q"${expr: Term} ${name: Term.Name}[..$tpes] (..$aexprs)" =>
+    case q"${expr: Term} ${name: Term.Name} (..$aexprs)" =>
       val (caller, callerEnv) = evaluate(expr, env)
       val paramss: Seq[Seq[Term.Param]] = name.defn match {
         case q"..$mods def $name[..$tparams](...$paramss): $tpeopt = $expr" => paramss
       }
-
       println(paramss)
-
-
-//      val justArgExprs: Seq[Tree] = (aexprs: Seq[Term.Arg]) map {
-//        case arg"$name = ${exp: Tree}" => exp
-//        case arg"${exp: Tree}: _*" => exp
-//        case arg"${exp: Tree}" => exp
-//      }
-//      val (ev1,  env1) = evaluate(expr, env)
-//      val (ev2s: Seq[Value], env2: Environment) = evaluate(aexprs: Seq[Term.Arg], env1)
-//      val substExpr: Term = name.defn match {
-//        case q"..$mods def $name[..$tparams](...$paramss): $tpeopt = $expr" =>
-//          val p: Seq[(Term.Param.Name, Option[Tree])] = (paramss: Seq[Seq[Term.Param]]).flatten map {
-//              case param"..$mods $paramname: $atpeopt = $expropt" => (paramname: Term.Param.Name, expropt: Option[Tree])
-//            }
-//
-//          val defParamsExprs: Seq[Tree] = p.unzip._2.takeRight(p.length - ev2s.length).map(_.get)
-//
-//          val paramsWithExpr = (p.unzip._1 zip (justArgExprs ++ defParamsExprs)).toMap
-          ???
-//          ((expr: Tree) transform {
-//              case name: Term.Name if paramsWithExpr.exists { case (n: Term.Param.Name, _) => n.toString == name.toString } =>
-//                paramsWithExpr(name)
-//              case q"this" => expr
-//            }).asInstanceOf[Tree]
-//      }
-      // Replace arguments in the body of the function with ev2s
-      // Evaluate the transformed tree with env2
-
-//      (evaluate(substExpr, env2)._1, env2)
+      ???
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
     case q"!${expr: Term}" =>
