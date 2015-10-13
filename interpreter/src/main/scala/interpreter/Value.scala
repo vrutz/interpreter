@@ -1,5 +1,6 @@
 package interpreter
 
+import scala.meta._
 /**
  * Created by rutz on 05/10/15.
  */
@@ -9,7 +10,7 @@ sealed trait Value {
   }
 }
 
-final case class Instance(tpe: interpreter.Type, className: String) extends Value
+final case class Instance(tpe: meta.Type, fields: Map[Slot, Value]) extends Value
 
 final case class Symbol(name: String) extends Value
 
@@ -21,6 +22,3 @@ final case class Literal(value: Any) extends Value {
     case v => v.toString
   }
 }
-
-sealed trait Type extends Value
-case object WildCard extends Type

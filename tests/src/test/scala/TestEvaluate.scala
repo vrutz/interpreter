@@ -15,6 +15,6 @@ class TestEvaluate extends FunSuite {
   implicit val c: Context = Context(Artifact(classpath, sourcepath))
 
   test("literal") {
-    c.sources.foreach(s => println(evaluate(s, new Environment())._1))
+    c.sources.foreach(s => println(evaluate(q"0", new Environment())._1))
   }
 }

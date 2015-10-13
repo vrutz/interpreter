@@ -51,6 +51,7 @@ object build extends Build {
     libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test",
     libraryDependencies += "org.scalacheck" %% "scalacheck" % "1.11.3" % "test",
+    (fork in run) := true,
     (javaOptions in test) ++= {
       val sbt_classpath = (fullClasspath in scrutinee in Compile).value
       val classpath = sbt_classpath.map(_.data.getAbsolutePath).mkString(java.io.File.pathSeparator)
