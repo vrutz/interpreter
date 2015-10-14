@@ -1,3 +1,5 @@
+import representations.{Value, Slot}
+
 /**
  * Created by rutz on 05/10/15.
  */

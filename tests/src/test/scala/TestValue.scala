@@ -4,6 +4,7 @@
 
 import interpreter._
 import org.scalatest._
+import representations.Literal
 
 class TestValue extends FunSuite {
 
