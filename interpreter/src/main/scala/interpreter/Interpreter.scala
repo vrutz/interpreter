@@ -107,6 +107,24 @@ object Interpreter {
       val (evaluatedRef, refEnv) = evaluate(ref, env)
 
       ???
+
+    case q"{ ..$stats}" =>
+      val lastFrame: Frame = env.get
+      val blockEnv = env push lastFrame
+      stats.foldLeft((List[Value](), blockEnv)) {
+        case ((evaluatedExprs, newEnv), nextExpr) =>
+          nextExpr match {
+//            case q"${expr: Term}" => evaluate(expr, newEnv)
+            case q"..$mods val ..$pats: $tpeopt = $expr" => pats map {
+                case p"$name" =>
+                case p"(..$pats)" =>
+                case p"$ref(..$apats)" =>
+              }
+            case q"..$mods var ..$pats: $tpeopt = $expropt" =>
+          }
+          ???
+      }
+      ???
     case t => (Literal(null), env)
   }
 
