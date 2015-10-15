@@ -13,7 +13,11 @@ trait MetaMap[K <: Tree, V] extends Map[K, V] with MapLike[K, V, MetaMap[K, V]] 
 
   protected val map = Map[K, V]()
 
-  override def get(t: K): Option[V] = map.get(t)
+  override def get(t: K): Option[V] = {
+    val res = map.filter(equality.isEqual(_, t))
+    if(res.isEmpty) None
+    else Some(res.head._2)
+  }
 
   override def getOrElse[B1 >: V](t: K, default: => B1) = this.get(t) match {
     case Some(v) => v
@@ -36,7 +40,6 @@ trait MetaMap[K <: Tree, V] extends Map[K, V] with MapLike[K, V, MetaMap[K, V]] 
   override def empty = new MetaMap[K, V] {
     override def equality[K] = outer.equality
   }
-
 }
 
 object MetaMap {
@@ -64,7 +67,7 @@ object MetaMap {
 
   def apply[K: MetaEquality, V](tvs: (K, V)*) = {
     val metaMap  = new MetaMap[K, V] {
-      override def equality[K] = implicitly[MetaEquality[K]]
+      override def equality[K]: MetaEquality[K] = implicitly[MetaEquality[K]]
     }.empty
     tvs.foldLeft(metaMap) { case (mmap, tv) => mmap + tv }
   }
