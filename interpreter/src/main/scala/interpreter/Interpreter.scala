@@ -1,7 +1,6 @@
 package interpreter
 
 import representations._
-import utils.MetaEquality
 
 import scala.meta._
 
@@ -16,12 +15,8 @@ object Interpreter {
   }
 
   def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-    // TODO Which equality to use?
-    implicit def treeEquality: MetaEquality[Tree] = new MetaEquality[Tree] {
-      def isEqual(t1: Tree, t2: Tree) = t1 =:= t2 || t1 =~= t2
-    }
 
-    term match {
+    term.desugar match {
       /* Literals */
       case q"${x: Boolean}" => (Literal(x), env)
       case q"${x: Byte}" => (Literal(x), env)
@@ -141,10 +136,14 @@ object Interpreter {
     pats.foldLeft(env) {
       case (newEnv, p"_") => evaluate(expr, newEnv)._2
 
-      // TODO Scala meta bug
-//      case p"${name: Term.Name}" =>
-//        val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
-//        exprEnv + (Local(name), evaluatedExpr)
+      // TODO Be careful with top level vs not top level patters
+      // TODO Top level are Pat.Var.Term and not top level are Term.Name
+      // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4)
+
+        //      case q"${name: Term.Name}" => ???
+      case internal.ast.Pat.Var.Term(name) =>
+        val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
+        exprEnv + (Local(name), evaluatedExpr)
 
       case (newEnv, p"(..$pats0)") => expr match {
         case q"(..$exprs)" => (pats0 zip exprs).foldLeft(newEnv) {
