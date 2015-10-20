@@ -14,7 +14,18 @@ class TestEvaluate extends FunSuite {
   implicit val c: Context = Context(Artifact(scalaLibrary))
 
   test("literal") {
+    println(c.getClass.getMethods.map {
+      case m: java.lang.reflect.Method => m.getName
+    })
+    println(evaluate(q"{val x = 2; 0 + x}")._1)
+    q"""class C
 
-    println(evaluate(/*c.typecheck(*/q"{val x = 2; 0 + x}")/*)*/._1)
+      object O {
+      def main(args: Array[String]): Unit = {
+        val c = new C
+        c.x = 2
+      }
+      }
+       """
   }
 }

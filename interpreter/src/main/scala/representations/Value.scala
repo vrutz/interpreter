@@ -1,3 +1,4 @@
+package scala.meta
 package representations
 
 import scala.meta._

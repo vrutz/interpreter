@@ -1,8 +1,8 @@
+package scala.meta
 package interpreter
 
+import representations.Anonymous
 import representations._
-
-import scala.meta._
 
 object Interpreter {
 
@@ -14,43 +14,25 @@ object Interpreter {
     }
   }
 
-  def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-
+  def evaluate(term0: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
+    val term: Term = ctx.typecheck(term0).asInstanceOf[Term]
     term.desugar match {
       /* Literals */
-      case q"${x: Boolean}" => (Literal(x), env)
-      case q"${x: Byte}" => (Literal(x), env)
-      case q"${x: Short}" => (Literal(x), env)
-      case q"${x: Int}" => (Literal(x), env)
-      case q"${x: Long}" => (Literal(x), env)
-      case q"${x: Float}" => (Literal(x), env)
-      case q"${x: Double}" => (Literal(x), env)
-      case q"${x: Char}" => (Literal(x), env)
-      case q"${x: String}" => (Literal(x), env)
-      case q"${x: scala.Symbol}" => (Literal(x), env)
-      case q"null" => (Literal(null), env)
-      case q"()" => (Literal(()), env)
+      case x: Lit => (Literal(x.value), env)
 
       /* Expressions */
-      // this: this | <expr>.this
+      // this
       case q"this" => (env(This), env)
-      //    case q"${qname: Term}.this" => evaluate(qname, env)
 
-      // TODO Scala meta bug
-      // super: super | <expr>.super | super[<expr>] | <expr>.super[<expr]
-      //    case q"super" => (env(Super), env)
-      //    case q"${qname: Term}.super" =>
-      //      val (instance: Instance, instanceEnv: Environment) = evaluate(qname, env)
-      //      (instanceEnv(Super), instanceEnv)
-      //    case q"super[${qname: Term}]" =>
-      //      val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname, env)
-      //      (env(Super), typeEnv)
-      //    case q"${qname0: Term}.super[${qname1: Term}]" =>
-      //      val (caller: Instance, callerEnv: Environment) = evaluate(qname0, env)
-      //      (callerEnv(Super), callerEnv)
+      //  super: super | super[<expr>]
+          case q"super" => (env(Super), env)
+          case q"super[$_]" => ???
+//            val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname, env)
+//            (env(Super), typeEnv)
 
       //    case q"${name: Term.Name}" => (env(Local(name)), env)
       // Selection <expr>.<name>
+      // Will cover all $stg.this, $stg.super etc...
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr: Instance, envExpr) = evaluate(expr, env)
         name.defn match {
@@ -64,14 +46,33 @@ object Interpreter {
       case q"${expr: Tree}(..$aexprs)" =>
         // Same as infix but with method apply
         evaluate(q"$expr apply (..$aexprs)", env)
-        (Instance(t"List", Map[Slot,Value]()), env)
       //    case q"$expr[..$tpes]" => ???
+      case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
+        val (caller: Value, callerEnv: Environment) = evaluate(expr0, env)
+        val (arg: Value, argEnv: Environment) = evaluate(expr1 match {
+          case arg"$name = $expr" => expr
+          case arg"$expr: _*" => expr
+          case expr: Term => expr
+        }, callerEnv)
+        name.defn match {
+          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" => paramss match {
+            case List(param"..$mods ${paramname: Term.Param.Name}: $atpeopt = $expropt") =>
+              val name: Slot = paramname match {
+                case _: Name.Anonymous => Anonymous
+                case paramName: Term.Name => Local(paramName)
+                case _ => println("Ohoh"); ???
+              }
+              val (result: Value, resultEnv: Environment) = evaluate(expr2, argEnv push Map(name -> arg, This -> caller))
+              (result, resultEnv.pop._2)
+          }
+        }
       case q"${expr: Term} ${name: Term.Name} (..$aexprs)" =>
         val (caller, callerEnv) = evaluate(expr, env)
-        val paramss: Seq[Seq[Term.Param]] = name.defn match {
-          case q"..$mods def $name[..$tparams](...$paramss): $tpeopt = $expr" => paramss
+        val paramss: Seq[Term.Param] = name.defn match {
+          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" => paramss
         }
         println(paramss)
+        // TODO need to be careful with the different ways to use arguments but let's do it like this for now
         ???
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
@@ -136,14 +137,14 @@ object Interpreter {
     pats.foldLeft(env) {
       case (newEnv, p"_") => evaluate(expr, newEnv)._2
 
-      // TODO Be careful with top level vs not top level patters
+      // TODO Be careful with top level vs not top level patterns
       // TODO Top level are Pat.Var.Term and not top level are Term.Name
-      // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4)
+      // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4) example
 
-        //      case q"${name: Term.Name}" => ???
-      case internal.ast.Pat.Var.Term(name) =>
+//      case q"${name: Term.Name}" => ???
+      case m: Member.Term =>
         val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
-        exprEnv + (Local(name), evaluatedExpr)
+        exprEnv + (Local(m.name), evaluatedExpr)
 
       case (newEnv, p"(..$pats0)") => expr match {
         case q"(..$exprs)" => (pats0 zip exprs).foldLeft(newEnv) {
