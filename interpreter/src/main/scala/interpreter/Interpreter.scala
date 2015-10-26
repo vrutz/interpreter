@@ -29,13 +29,11 @@ object Interpreter {
 
       //  super: super | super[<expr>]
       case q"super" => (env(Super), env)
-      case q"super[$_]" => ???
-//            val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname, env)
-//            (env(Super), typeEnv)
+      case q"super[$_]" => (env(Super), env)
 
       case name: Term.Name => (env(Local(name)), env)
     // Selection <expr>.<name>
-      // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
+    // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
 
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr: Instance, envExpr) = evaluate(expr, env)
@@ -46,11 +44,13 @@ object Interpreter {
           case q"..$mods def $name(): $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
         }
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
-      case q"${expr: Tree}(..$aexprs)" =>
         // Same as infix but with method apply
+      case q"${expr: Tree}(..$aexprs)" =>
         evaluate(q"$expr apply (..$aexprs)", env)
-      //    case q"$expr[..$tpes]" => ???
 
+      case q"$expr[$_]" => evaluate(expr, env)
+
+      // Infix application to one argument
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
         // println(name.toString)
         val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
@@ -63,7 +63,6 @@ object Interpreter {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
             val function: Option[FunSig] = name.defn.asInstanceOf[m.Member].ffi match {
               case Intrinsic(className: String, methodName: String, signature: String) =>
-                // println(signature)
                 Some((symbolToType(className), nameToSymbol(methodName.tail), Array(Int)))
               case JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
@@ -71,9 +70,9 @@ object Interpreter {
             }
             expr2 match {
                 // We do not have a body
-              case _ if scalaIntrinsic.isDefinedAt(name.toString)=> println(s"no body for $name");
-                scalaIntrinsic(name.toString)(caller, arg, argEnv)
                 // Try to see if scalaIntrinsic
+              case _ if scalaIntrinsic.isDefinedAt(name.toString)=> scalaIntrinsic(name.toString)(caller, arg, argEnv)
+
                 // Else jvm  method
                 // We do have a body
               case _ =>
@@ -134,13 +133,16 @@ object Interpreter {
           case Literal(e: Float) => Literal(-e)
           case Literal(e: Double) => Literal(-e)
         }, exprEnv)
+
       case q"${ref: Term.Ref} = ${expr: Term}" =>
         val (evaluatedRef, refEnv) = evaluate(ref, env)
+        val (evaluatedExpr, exprEnv) = evaluate(expr, refEnv)
         ???
 
       case q"{ ..$stats}" =>
         val lastFrame: Frame = env.get
         val blockEnv = env push lastFrame
+
         val (l: List[Value], newEnv: Environment) = stats.foldLeft((List[Value](), blockEnv)) {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
             // println(nextExpr)
@@ -154,7 +156,9 @@ object Interpreter {
                 (List(res), e)
             }
         }
-        (l.head, newEnv)
+        // newEnv.propagateChanges
+        (l.head, newEnv.pop._2)
+
       case t => (Literal(null), env)
     }
   }
@@ -200,7 +204,7 @@ object Interpreter {
     }
   }
 
-	def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
+  def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
     case t@q"$expr.$name" if (name: Term.Name).toString == toFind =>
       println(s"Found one $toFind in expression: $t")
       find(toFind)(expr)
