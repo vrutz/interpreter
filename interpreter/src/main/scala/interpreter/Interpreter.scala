@@ -3,6 +3,8 @@ package interpreter
 
 import representations.Anonymous
 import representations._
+import scala.meta.internal.{ast => m}
+import scala.meta.internal.ffi.Ffi._
 
 object Interpreter {
 
@@ -16,6 +18,7 @@ object Interpreter {
 
   def evaluate(term0: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     val term: Term = ctx.typecheck(term0).asInstanceOf[Term]
+    // println(term.desugar.show[Syntax])
     term.desugar match {
       /* Literals */
       case x: Lit => (Literal(x.value), env)
@@ -25,14 +28,15 @@ object Interpreter {
       case q"this" => (env(This), env)
 
       //  super: super | super[<expr>]
-          case q"super" => (env(Super), env)
-          case q"super[$_]" => ???
+      case q"super" => (env(Super), env)
+      case q"super[$_]" => ???
 //            val (typeToApp: interpreter.Type, typeEnv) = evaluate(qname, env)
 //            (env(Super), typeEnv)
 
-      //    case q"${name: Term.Name}" => (env(Local(name)), env)
-      // Selection <expr>.<name>
-      // Will cover all $stg.this, $stg.super etc...
+      case name: Term.Name => (env(Local(name)), env)
+    // Selection <expr>.<name>
+      // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
+
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr: Instance, envExpr) = evaluate(expr, env)
         name.defn match {
@@ -41,37 +45,58 @@ object Interpreter {
           case q"..$mods def $name: $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
           case q"..$mods def $name(): $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
         }
-
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
       case q"${expr: Tree}(..$aexprs)" =>
         // Same as infix but with method apply
         evaluate(q"$expr apply (..$aexprs)", env)
       //    case q"$expr[..$tpes]" => ???
+
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
-        val (caller: Value, callerEnv: Environment) = evaluate(expr0, env)
-        val (arg: Value, argEnv: Environment) = evaluate(expr1 match {
+        // println(name.toString)
+        val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
+        val (arg: Literal, argEnv: Environment) = evaluate(expr1 match {
           case arg"$name = $expr" => expr
           case arg"$expr: _*" => expr
           case expr: Term => expr
         }, callerEnv)
-        name.defn match {
-          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" => paramss match {
-            case List(param"..$mods ${paramname: Term.Param.Name}: $atpeopt = $expropt") =>
-              val name: Slot = paramname match {
-                case _: Name.Anonymous => Anonymous
-                case paramName: Term.Name => Local(paramName)
-                case _ => println("Ohoh"); ???
-              }
-              val (result: Value, resultEnv: Environment) = evaluate(expr2, argEnv push Map(name -> arg, This -> caller))
-              (result, resultEnv.pop._2)
-          }
+        val (result: Value, resultEnv: Environment) = name.defn match {
+          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
+            val function: Option[FunSig] = name.defn.asInstanceOf[m.Member].ffi match {
+              case Intrinsic(className: String, methodName: String, signature: String) =>
+                // println(signature)
+                Some((symbolToType(className), nameToSymbol(methodName.tail), Array(Int)))
+              case JvmMethod(className: String, fieldName: String, signature: String) =>
+                ???
+              case Zero => None
+            }
+            expr2 match {
+                // We do not have a body
+              case _ if scalaIntrinsic.isDefinedAt(name.toString)=> println(s"no body for $name");
+                scalaIntrinsic(name.toString)(caller, arg, argEnv)
+                // Try to see if scalaIntrinsic
+                // Else jvm  method
+                // We do have a body
+              case _ =>
+                paramss match {
+                  case List(param"..$mods0 ${paramname: Term.Param.Name}: $atpeopt = $expropt") =>
+
+                    val nameSlot: Slot = paramname match {
+                      case _: Name.Anonymous => Anonymous
+                      case paramName: Term.Name => Local(paramName)
+                    }
+                    evaluate(expr2, argEnv push Map(nameSlot -> arg, This -> caller))
+                }
+            }
         }
+        (result, resultEnv.pop._2)
+
       case q"${expr: Term} ${name: Term.Name} (..$aexprs)" =>
+        // println(s"aexprs: $aexprs")
         val (caller, callerEnv) = evaluate(expr, env)
         val paramss: Seq[Term.Param] = name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" => paramss
         }
-        println(paramss)
+        // println(paramss)
         // TODO need to be careful with the different ways to use arguments but let's do it like this for now
         ???
 
@@ -111,7 +136,6 @@ object Interpreter {
         }, exprEnv)
       case q"${ref: Term.Ref} = ${expr: Term}" =>
         val (evaluatedRef, refEnv) = evaluate(ref, env)
-
         ???
 
       case q"{ ..$stats}" =>
@@ -119,14 +143,16 @@ object Interpreter {
         val blockEnv = env push lastFrame
         val (l: List[Value], newEnv: Environment) = stats.foldLeft((List[Value](), blockEnv)) {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
-            println(nextExpr)
+            // println(nextExpr)
             nextExpr match {
-              // TODO Scala meta bug
-              //            case q"${expr: Term}" => evaluate(expr, exprEnv)
-              case q"..$mods val ..$pats: $tpeopt = $expr" => (Literal(()) :: evaluatedExprs, link(pats, expr, exprEnv))
-              case q"..$mods var ..$pats: $tpeopt = $expropt" => ???
+              case q"..$mods val ..$pats: $tpeopt = $expr" =>
+                (Literal(()) :: evaluatedExprs, link(pats, expr, exprEnv))
+              case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined =>
+                (Literal(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
+              case expr: Term =>
+                val (res, e) = evaluate(expr, exprEnv)
+                (List(res), e)
             }
-            ???
         }
         (l.head, newEnv)
       case t => (Literal(null), env)
@@ -142,7 +168,7 @@ object Interpreter {
       // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4) example
 
 //      case q"${name: Term.Name}" => ???
-      case m: Member.Term =>
+      case (newEnv, m: Member.Term) =>
         val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
         exprEnv + (Local(m.name), evaluatedExpr)
 
@@ -153,6 +179,7 @@ object Interpreter {
       }
 
       case (newEnv, p"$ref(..$apats)") =>
+        println(ref)
         val justArgExprs = expr match {
           case q"$expr0(..$aexprs)" =>
             aexprs map {

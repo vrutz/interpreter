@@ -15,4 +15,6 @@ final class Environment(stack: CallStack) {
   def push(frame: Frame): Environment = new Environment(frame :: stack)
   def pop: (Frame, Environment) = (stack.head, new Environment(stack.tail))
   def get: Frame = stack.head
+
+  override def toString = stack.mkString("\n")
 }
