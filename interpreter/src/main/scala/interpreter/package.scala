@@ -19,16 +19,20 @@ package object interpreter {
       case "~" => brt.complement(op)
       case "!" => brt.takeNot(op)
       case "toChar" => brt.toCharacter(op)
-        case "toByte" => brt.toByte(op)
-        case "toShort" => brt.toShort(op)
-        case "toInt" => brt.toInteger(op)
-        case "toLong" => brt.toLong(op)
-        case "toFloat" => brt.toFloat(op)
-        case "toDouble" => brt.toDouble(op)
+      case "toByte" => brt.toByte(op)
+      case "toShort" => brt.toShort(op)
+      case "toInt" => brt.toInteger(op)
+      case "toLong" => brt.toLong(op)
+      case "toFloat" => brt.toFloat(op)
+      case "toDouble" => brt.toDouble(op)
     })
 
   def invokePrimitiveBinaryMethod(name: String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
-      case "+" => brt.add(op1, op2)
+      case "+" => (op1, op2) match {
+          case (s: String, _) => s + op2
+          case (_, s: String) => op1 + s
+          case _ => brt.add(op1, op2)
+        }
       case "-" => brt.subtract(op1, op2)
       case "*" => brt.multiply(op1, op2)
       case "/" => brt.divide(op1, op2)

@@ -41,13 +41,31 @@ object Interpreter {
     // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
 
       case q"${expr: Term}.${name: Term.Name}" =>
-        val (evalExpr: Instance, envExpr) = evaluate(expr, env)
-        name.defn match {
-          case q"this" => ???
-          case q"..$mods val ..$pats: $tpeopt = ${expr: Term}" => (evalExpr.fields(Local(name)), envExpr)
-          case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined => (evalExpr.fields(Local(name)), envExpr)
-          case q"..$mods def $name: $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
-          case q"..$mods def $name(): $tpeopt = ${expr: Term}" => evaluate(expr, envExpr)
+        val (evalExpr, envExpr) = evaluate(expr, env)
+        (name.defn, evalExpr) match {
+          // Some more unary operations
+          case (q"..$mods def toChar: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toChar")(e.value), envExpr)
+          case (q"..$mods def toByte: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toByte")(e.value), envExpr)
+          case (q"..$mods def toShort: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toShort")(e.value), envExpr)
+          case (q"..$mods def toInt: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toInt")(e.value), envExpr)
+          case (q"..$mods def toLong: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toLong")(e.value), envExpr)
+          case (q"..$mods def toFloat: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toFloat")(e.value), envExpr)
+          case (q"..$mods def toDouble: $tpeopt = ${expr: Term}", e: Literal) =>
+            (invokePrimitiveUnaryMethod("toDouble")(e.value), envExpr)
+
+          // The real work
+          case (q"this", e: Instance) => ???
+          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
+          case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
+
+          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
+          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
         }
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
@@ -60,10 +78,9 @@ object Interpreter {
       case q"$expr[$_]" => evaluate(expr, env)
 
       // Infix application to one argument
-      case t @q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
+      case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
         // println(name.toString)
-        println(t)
-        println(evaluate(expr0, env)._1)
+        // println(evaluate(expr0, env)._1)
         val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
         val (arg: Literal, argEnv: Environment) = evaluate(expr1 match {
           case arg"$name = $expr" => expr
