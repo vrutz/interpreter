@@ -35,11 +35,14 @@ object Interpreter {
       case q"super" => (env(Super), env)
       case q"super[$_]" => (env(Super), env)
 
-      case name: Term.Name => (env(Local(name)), env)
+      case name: Term.Name => env(Local(name)) match {
+         case l @ Literal(value) => (l, env)
+         case f @ Function(name, Nil, expr) => evaluate(expr, env)
+         case f @ Function(name, args, expr) => ???
+        }
 
     // Selection <expr>.<name>
     // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
-
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
@@ -136,6 +139,8 @@ object Interpreter {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
             // println(nextExpr)
             nextExpr match {
+              case q"..$mods def $name: $tpeopt = $expr" =>
+                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
               case q"..$mods def $name(..$params): $tpeopt = $expr" =>
                 (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
               case q"..$mods val ..$pats: $tpeopt = $expr" =>
@@ -162,7 +167,7 @@ object Interpreter {
       // TODO Top level are Pat.Var.Term and not top level are Term.Name
       // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4) example
 
-//      case name: Term.Name => ???
+      case name: Term.Name => ???
       case (newEnv, m: Pat.Var.Term) =>
         val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
         exprEnv + (Local(m.name), evaluatedExpr)
