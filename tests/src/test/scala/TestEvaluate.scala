@@ -9,13 +9,13 @@ import interpreter.Interpreter._
  */
 class TestEvaluate extends FunSuite {
   val scalaLibrary = sys.props("sbt.paths.scalalibrary.classes")
-  val classpath = sys.props("sbt.paths.scrutinee.classes")
-  val sourcepath = sys.props("sbt.paths.scrutinee.sources")
+  // val classpath = sys.props("sbt.paths.scrutinee.classes")
+  // val sourcepath = sys.props("sbt.paths.scrutinee.sources")
 
   implicit val c: Context = Context(Artifact(scalaLibrary))
 
   test("literal") {
-    println(evaluate(q"""{val x = 2; x + "a"}""")._1)
+    println(eval(q"""{ def plus(a: Int) = a + 5; val x = 2; plus(x)}""")._1)
 
   }
 }

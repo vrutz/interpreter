@@ -10,10 +10,13 @@ sealed trait Value {
     case Symbol(name) => s"$name"
     case Instance(tpe, fields) => s"$tpe"
     case l: Literal => l.toString
+    case Function(name, args, code) => s"def $name($args) = $code"
   }
 }
 
 final case class Instance(tpe: Type, fields: Map[Slot, Value]) extends Value
+
+final case class Function(name: Term.Name, args: Seq[Term.Param], code: Term) extends Value
 
 final case class Symbol(name: String) extends Value
 
