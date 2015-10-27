@@ -15,7 +15,7 @@ class TestEvaluate extends FunSuite {
   implicit val c: Context = Context(Artifact(scalaLibrary))
 
   test("literal") {
-    println(eval(q"""{ def plus(a: Int) = a + 5; val x = 2; plus(x)}""")._1)
+    println(eval(q"""{ val x = 2; List(x)}""")._1)
 
   }
 }

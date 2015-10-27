@@ -36,6 +36,7 @@ object Interpreter {
       case q"super[$_]" => (env(Super), env)
 
       case name: Term.Name => (env(Local(name)), env)
+
     // Selection <expr>.<name>
     // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
 
@@ -71,30 +72,12 @@ object Interpreter {
         }, callerEnv)
         val (result: Value, resultEnv: Environment) = name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
-            val function: Option[FunSig] = name.defn.asInstanceOf[m.Member].ffi match {
+            name.defn.asInstanceOf[m.Member].ffi match {
               case Intrinsic(className: String, methodName: String, signature: String) =>
-                Some((symbolToType(className), nameToSymbol(methodName.tail), Array(Int)))
+                (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
               case JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
               case Zero => None
-            }
-            expr2 match {
-                // We do not have a body
-                // Try to see if scalaIntrinsic
-              case _ if scalaIntrinsic.isDefinedAt(name.toString)=> scalaIntrinsic(name.toString)(caller, arg, argEnv)
-
-                // Else jvm  method
-                // We do have a body
-              case _ =>
-                paramss match {
-                  case List(param"..$mods0 ${paramname: Term.Param.Name}: $atpeopt = $expropt") =>
-
-                    val nameSlot: Slot = paramname match {
-                      case _: Name.Anonymous => Anonymous
-                      case paramName: Term.Name => Local(paramName)
-                    }
-                    evaluate(expr2, argEnv push Map(nameSlot -> arg, This -> caller))
-                }
             }
         }
         (result, resultEnv.pop._2)
@@ -111,38 +94,17 @@ object Interpreter {
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
       case q"!${expr: Term}" =>
-        val (evaluatedExpr, exprEnv) = evaluate(expr, env)
-        (evaluatedExpr match {
-          case Literal(bool: Boolean) => Literal(!bool)
-        }, exprEnv)
+        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
+        (invokePrimitiveUnaryMethod("$bang")(evaluatedExpr.value), exprEnv)
       case q"~${expr: Term}" =>
-        val (evaluatedExpr, exprEnv) = evaluate(expr, env)
-        (evaluatedExpr match {
-          case Literal(e: Byte) => Literal(~e)
-          case Literal(e: Short) => Literal(~e)
-          case Literal(e: Int) => Literal(~e)
-          case Literal(e: Long) => Literal(~e)
-        }, exprEnv)
+        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
+        (invokePrimitiveUnaryMethod("$tilde")(evaluatedExpr.value), exprEnv)
       case q"+${expr: Term}" =>
-        val (evaluatedExpr, exprEnv) = evaluate(expr, env)
-        (evaluatedExpr match {
-          case Literal(e: Byte) => Literal(+e)
-          case Literal(e: Short) => Literal(+e)
-          case Literal(e: Int) => Literal(+e)
-          case Literal(e: Long) => Literal(+e)
-          case Literal(e: Float) => Literal(+e)
-          case Literal(e: Double) => Literal(+e)
-        }, exprEnv)
+        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
+        (invokePrimitiveUnaryMethod("$plus")(evaluatedExpr.value), exprEnv)
       case q"-${expr: Term}" =>
-        val (evaluatedExpr, exprEnv) = evaluate(expr, env)
-        (evaluatedExpr match {
-          case Literal(e: Byte) => Literal(-e)
-          case Literal(e: Short) => Literal(-e)
-          case Literal(e: Int) => Literal(-e)
-          case Literal(e: Long) => Literal(-e)
-          case Literal(e: Float) => Literal(-e)
-          case Literal(e: Double) => Literal(-e)
-        }, exprEnv)
+        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
+        (invokePrimitiveUnaryMethod("$minus")(evaluatedExpr.value), exprEnv)
 
       case q"${ref: Term.Ref} = ${expr: Term}" =>
         val (evaluatedRef, refEnv) = evaluate(ref, env)
@@ -183,8 +145,8 @@ object Interpreter {
       // TODO Top level are Pat.Var.Term and not top level are Term.Name
       // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4) example
 
-//      case q"${name: Term.Name}" => ???
-      case (newEnv, m: Member.Term) =>
+//      case name: Term.Name => ???
+      case (newEnv, m: Pat.Var.Term) =>
         val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
         exprEnv + (Local(m.name), evaluatedExpr)
 

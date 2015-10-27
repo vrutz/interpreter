@@ -6,7 +6,7 @@ import scala.meta._
  * Created by rutz on 05/10/15.
  */
 sealed trait Value {
-  override def toString = this match {
+  override def toString: String = this match {
     case Symbol(name) => s"$name"
     case Instance(tpe, fields) => s"$tpe"
     case l: Literal => l.toString
