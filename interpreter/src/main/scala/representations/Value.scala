@@ -16,7 +16,7 @@ sealed trait Value {
 final case class Instance(tpe: Type, fields: Map[Slot, Value]) extends Value
 
 final case class Function(name: Term.Name, args: Seq[Term.Param], code: Term) extends Value
-final case class Main(args: Array[Value], code: Term) extends Value
+final case class Main(args: Value, code: Term) extends Value
 
 final case class Literal(value: Any) extends Value {
   override def toString = value match {

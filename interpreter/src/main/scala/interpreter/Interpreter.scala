@@ -8,16 +8,17 @@ import scala.meta.internal.ffi.Ffi._
 
 object Interpreter {
 
-  def eval(stat: Stat, args: Array[String] = Array[String]())(implicit ctx: Context): Value = ctx.typecheck(stat) match {
+  def eval(stat: Stat, args: Term = q"Array[String]()")(implicit ctx: Context): Value = ctx.typecheck(stat) match {
     // Stat can be either a block (multiple statements like class/object def and imports etc...)
     // Or it is an object containing the main function
 
     case q"object $name extends $template" =>
       val template"{ ..$_ } with ..$_ { $_ => ..$stats1 }" = template
       val env: Environment = stats1.foldLeft(new Environment()) {
-        case (env, q"..$mods def main(${argsName: Term.Param.Name}: Array[String]): Unit = ${ expr:Term }") =>
+        case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${ expr:Term }") =>
           println("Found Main")
-          env + (MainFun, Main(args.map(Literal(_)), expr))
+          val evalArgs = evaluate(args)._1
+          env + (MainFun, Main(evalArgs, expr)) + (Local(argsName), evalArgs)
         case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
           env + (Local(name), Function(name, params, expr))
       }
@@ -25,7 +26,9 @@ object Interpreter {
       // TODO find main method in an object and evaluate its body with args in the environment
       val Main(arguments, term) = env(MainFun)
       println(term.show[Syntax])
-      evaluate(term, env)._1
+      // Find a way to add the arguments to the environment
+      evaluate(term, env)
+      Literal(())
 
     case t: Term => evaluate(t.desugar)._1
     
@@ -95,8 +98,12 @@ object Interpreter {
         }
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
-      case q"${expr: Term.Name}(..$aexprs)" =>
-        val Function(name, args, code) = env(Local(expr))
+        // If name is a class, then use reflection to create the object
+      case q"${name: Term.Name}(..$aexprs)" if name.isClass =>
+
+        ???
+      case q"${name0: Term.Name}(..$aexprs)" =>
+        val Function(name, args, code) = env(Local(name0))
         ???
       case q"${expr: Term}(..$aexprs)" =>
         evaluate(q"$expr apply (..$aexprs)", env)

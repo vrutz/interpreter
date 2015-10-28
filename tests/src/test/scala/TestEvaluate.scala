@@ -19,7 +19,7 @@ class TestEvaluate extends FunSuite {
   }
 
   test("issue 1") {
-    println(eval("""
+    eval("""
         |object Test {
         |  def main(args: Array[String]): Unit = {
         |    val x = args.length
@@ -27,6 +27,7 @@ class TestEvaluate extends FunSuite {
         |    println(y)
         |  }
         |}
-    """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6")))
+    """.stripMargin.parse[Stat],
+    q""" Array[String]("test", "if", "it", "works", "for", "6")""")
   }
 }
