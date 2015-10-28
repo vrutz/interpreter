@@ -17,7 +17,7 @@ object JVMSignatureParser extends RegexParsers {
   def reference = "L" ~> id <~ ";" ^^ { _.replace('/', '.') } 
   def tpe       = void | bool | char | byte | short | int | long | float | double | reference
   def array     = "[" ~> tpe ^^ { t => s"scala.Array" }
-  def signature = "(" ~> rep(tpe | array) <~ ")" ~> tpe ^^ { 
+  def signature = "(" ~> rep(tpe | array) <~ ")" ~> (tpe | array) ^^ { 
     case Nil => JVMSignature(Array())
     case sig: List[String] => JVMSignature(sig.toArray)
   }

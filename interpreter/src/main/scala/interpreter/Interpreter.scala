@@ -1,11 +1,21 @@
 package scala.meta
 package interpreter
 
-import representations.Anonymous
 import representations._
+import representations.JVMSignature
+import representations.JVMSignatureParser._
+
+import scala.util.parsing.combinator._
+import scala.util.parsing.input.CharSequenceReader
+
+import scala.collection.mutable.ListBuffer
+
 import scala.reflect.runtime.{universe => ru}
+
 import scala.meta.internal.{ast => m}
 import scala.meta.internal.ffi.{Ffi => f}
+
+import java.lang.reflect.Modifier
 
 object Interpreter {
 
@@ -17,7 +27,6 @@ object Interpreter {
       val template"{ ..$_ } with ..$_ { $_ => ..$stats1 }" = template
       val env: Environment = stats1.foldLeft(new Environment()) {
         case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${ expr:Term }") =>
-          println("Found Main")
           env + (MainFun, Main(Instance(args), expr)) + (Local(argsName), Instance(args))
         case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
           env + (Local(name), Function(name, params, expr))
@@ -100,20 +109,39 @@ object Interpreter {
         // val ctor = c.getDeclaredConstructor(types)
         ???
       case q"${name0: Term.Name}(..$aexprs)" if getFFI(name0) != f.Zero =>
-        println(getFFI(name0))
+        val justExprsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+        val argEnv: Environment = aexprs.foldLeft(env) {
+          case (e, arg"$name = $expr") => 
+            val (newExpr, newEnv) = evaluate(expr, e)
+            justExprsBuffer += newExpr
+            newEnv
+          case (e, arg"$expr: _*") => 
+            val (newExpr, newEnv) = evaluate(expr, e)
+            justExprsBuffer += newExpr
+            newEnv
+          case (e, expr: Term) => 
+            val (newExpr, newEnv) = evaluate(expr, e)
+            justExprsBuffer += newExpr
+            newEnv
+        }
+        val justExprs = justExprsBuffer.toArray
+
         getFFI(name0) match {
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
             ???
+
           case f.JvmMethod(className: String, fieldName: String, signature: String) =>
-            val c: Class[_] = Class.forName(jvmtoFullName(className))
-            val methods = c.getMethods().filter(m => m.getName() == fieldName && m.getParameterCount() == aexprs.size)
-            methods match {
-              case Array() => // Should not happen
-              case Array(m) => ???
-              case _ => 
-            }
-            ???
+            val c: Class[_] = Class.forName(jvmToFullName(className))
+            val argsType: Array[Class[_ <: Any]] = parsing(signature).getSignature
+            val method = c.getMethod(fieldName, argsType: _*)
+            val module = c.getField("MODULE$").get(c)
+
+            (method.invoke(module, justExprs: _*) match {
+              case null => Literal(())
+              case _ => ???
+            }, argEnv)
         }
+
       case q"${expr: Term}(..$aexprs)" =>
         evaluate(q"$expr apply (..$aexprs)", env)
 
@@ -121,8 +149,6 @@ object Interpreter {
 
       // Infix application to one argument
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
-        // println(name.toString)
-        // println(evaluate(expr0, env)._1)
         val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
         val (arg: Literal, argEnv: Environment) = evaluate(expr1 match {
           case arg"$name = $expr" => expr
@@ -142,12 +168,10 @@ object Interpreter {
         (result, resultEnv.pop._2)
 
       case q"${expr: Term} ${name: Term.Name} (..$aexprs)" =>
-        // println(s"aexprs: $aexprs")
         val (caller, callerEnv) = evaluate(expr, env)
         val paramss: Seq[Term.Param] = name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" => paramss
         }
-        // println(paramss)
         // TODO need to be careful with the different ways to use arguments but let's do it like this for now
         ???
 
@@ -176,7 +200,6 @@ object Interpreter {
 
         val (l: List[Value], newEnv: Environment) = stats.foldLeft((List[Value](), blockEnv)) {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
-            // println(nextExpr)
             nextExpr match {
               case q"..$mods def $name: $tpeopt = $expr" =>
                 (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
@@ -196,7 +219,7 @@ object Interpreter {
 
       case t => (Literal(null), env)
     }
-    println(s"$term evaluates to ${res._1}")
+    // println(s"$term evaluates to ${res._1}")
     res
   }
 
@@ -249,7 +272,21 @@ object Interpreter {
       println(s"Found one $toFind in expression: $t")
   }
 
-  private def jvmtoFullName(jvmName: String): String = jvmName.substring(1, jvmName.length - 1).replace('/', '.')
+  private def jvmToFullName(jvmName: String): String = jvmName.substring(1, jvmName.length - 1).replace('/', '.')
 
   private def getFFI(name: Term.Name)(implicit ctx: Context) = name.defn.asInstanceOf[m.Member].ffi
+
+  implicit val parser = signature
+
+  private def parsing[T](s: String)(implicit p: Parser[T]):T = {
+    // Wrap the parser in the phrase parse to make sure all input is consumed
+    val phraseParser = phrase(p)
+    // We need to wrap the string in a reader so our parser can digest it
+    val input = new CharSequenceReader(s) 
+    phraseParser(input) match {
+          case Success(t,_)     => t
+          case NoSuccess(msg,_) =>
+            throw new IllegalArgumentException("Could not parse '" + s + "': " + msg)
+        }
+    }
 }

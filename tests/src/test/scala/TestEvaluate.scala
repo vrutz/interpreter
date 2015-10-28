@@ -4,6 +4,7 @@ import org.scalatest.FunSuite
 
 import scala.meta.dialects.Scala211
 import interpreter.Interpreter._
+import representations.Literal
 /**
  * Created by rutz on 06/10/15.
  */
@@ -15,19 +16,25 @@ class TestEvaluate extends FunSuite {
   implicit val c: Context = Context(Artifact(scalaLibrary))
 
   test("literal") {
-     println(eval(q"""{ def x = 2; x }"""))
+     assert(eval(q"""{ def x = 2; x }""") match {
+        case Literal(2) => true
+        case _ => false
+     })
   }
 
   test("simple main with args") {
-    eval("""
-        |object Test {
-        |  def main(args: Array[String]): Unit = {
-        |    val x = args.length
-        |    val y = x * x
-        |    println(y)
-        |  }
-        |}
-    """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6"))
+    assert(eval("""
+            |object Test {
+            |  def main(args: Array[String]): Unit = {
+            |    val x = args.length
+            |    val y = x * x
+            |    println(y)
+            |  }
+            |}
+        """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6")) match {
+        case Literal(()) => true
+        case _ => false
+    })
   }
 /*
   test("defining functions") {
@@ -55,5 +62,6 @@ class TestEvaluate extends FunSuite {
         |   }
         |}
         """.stripMargin.parse[Stat])
-  }*/
+  }
+  */
 }
