@@ -8,13 +8,36 @@ import scala.meta.internal.ffi.Ffi._
 
 object Interpreter {
 
-  def eval(term0: Term)(implicit ctx: Context) = {
-    val term: Term = ctx.typecheck(term0).asInstanceOf[Term]
-    // println(term.desugar.show[Syntax])
-    evaluate(term.desugar)
+  def eval(stat: Stat, args: Array[String] = Array[String]())(implicit ctx: Context): Value = ctx.typecheck(stat) match {
+    // Stat can be either a block (multiple statements like class/object def and imports etc...)
+    // Or it is an object containing the main function
+
+    case q"object $name extends $template" =>
+      val template"{ ..$_ } with ..$_ { $_ => ..$stats1 }" = template
+      val env: Environment = stats1.foldLeft(new Environment()) {
+        case (env, q"..$mods def main(${argsName: Term.Param.Name}: Array[String]): Unit = ${ expr:Term }") =>
+          println("Found Main")
+          env + (MainFun, Main(args.map(Literal(_)), expr))
+        case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
+          env + (Local(name), Function(name, params, expr))
+      }
+      // TODO Traverse the whole file to build the environment with all the different functions/fields etc...
+      // TODO find main method in an object and evaluate its body with args in the environment
+      val Main(arguments, term) = env(MainFun)
+      println(term.show[Syntax])
+      evaluate(term, env)._1
+
+    case t: Term => evaluate(t.desugar)._1
+    
+    case q"{ ..$stats }" => 
+      println(s"Term $stat");???
+
+    
+    case q"import ..$importersnel" =>
+      println("import $stat"); ???
   }
 
-  def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
+  private def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
     terms.foldRight(List[Value](), env) {
       case (expr, (evaluatedExprs, newEnv)) =>
         val (newEvaluatedExpr, envToKeep) = evaluate(expr, newEnv)
@@ -22,7 +45,7 @@ object Interpreter {
     }
   }
 
-  def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
+  private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     term match {
       /* Literals */
       case x: Lit => (Literal(x.value), env)
@@ -159,7 +182,7 @@ object Interpreter {
     }
   }
 
-  def link(pats: Seq[Pat], expr: Term, env: Environment)(implicit c: Context): Environment = {
+  private def link(pats: Seq[Pat], expr: Term, env: Environment)(implicit c: Context): Environment = {
     pats.foldLeft(env) {
       case (newEnv, p"_") => evaluate(expr, newEnv)._2
 
@@ -192,7 +215,7 @@ object Interpreter {
           case parg"$pat" => Seq(pat)
 //          case parg"_*" => p"_"
         }
-        // TODO Scala meta bug
+        // TODO Redo all that
 //        (justPats zip justArgExprs).foldLeft(newEnv) {
 //          case (newNewEnv: Environment, (seqPat, e: Term)) => link(seqPat, e, newNewEnv)
 //        }
@@ -200,7 +223,7 @@ object Interpreter {
     }
   }
 
-  def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
+  private def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
     case t@q"$expr.$name" if (name: Term.Name).toString == toFind =>
       println(s"Found one $toFind in expression: $t")
       find(toFind)(expr)

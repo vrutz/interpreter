@@ -15,6 +15,18 @@ class TestEvaluate extends FunSuite {
   implicit val c: Context = Context(Artifact(scalaLibrary))
 
   test("literal") {
-     println(eval(q"""{ def x = 2; x }""")._1)
+     println(eval(q"""{ def x = 2; x }"""))
+  }
+
+  test("issue 1") {
+    println(eval("""
+        |object Test {
+        |  def main(args: Array[String]): Unit = {
+        |    val x = args.length
+        |    val y = x * x
+        |    println(y)
+        |  }
+        |}
+    """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6")))
   }
 }

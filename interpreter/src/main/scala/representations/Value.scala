@@ -7,7 +7,6 @@ import scala.meta._
  */
 sealed trait Value {
   override def toString: String = this match {
-    case Symbol(name) => s"$name"
     case Instance(tpe, fields) => s"$tpe"
     case l: Literal => l.toString
     case Function(name, args, code) => s"def $name($args) = $code"
@@ -17,8 +16,7 @@ sealed trait Value {
 final case class Instance(tpe: Type, fields: Map[Slot, Value]) extends Value
 
 final case class Function(name: Term.Name, args: Seq[Term.Param], code: Term) extends Value
-
-final case class Symbol(name: String) extends Value
+final case class Main(args: Array[Value], code: Term) extends Value
 
 final case class Literal(value: Any) extends Value {
   override def toString = value match {
