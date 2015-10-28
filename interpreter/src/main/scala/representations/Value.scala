@@ -7,13 +7,13 @@ import scala.meta._
  */
 sealed trait Value {
   override def toString: String = this match {
-    case Instance(tpe, fields) => s"$tpe"
+    case Instance(jvmInstance) => jvmInstance.toString
     case l: Literal => l.toString
     case Function(name, args, code) => s"def $name($args) = $code"
   }
 }
 
-final case class Instance(tpe: Type, fields: Map[Slot, Value]) extends Value
+final case class Instance(jvmInstance: Any) extends Value
 
 final case class Function(name: Term.Name, args: Seq[Term.Param], code: Term) extends Value
 final case class Main(args: Value, code: Term) extends Value

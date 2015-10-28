@@ -18,7 +18,7 @@ class TestEvaluate extends FunSuite {
      println(eval(q"""{ def x = 2; x }"""))
   }
 
-  test("issue 1") {
+  test("simple main with args") {
     eval("""
         |object Test {
         |  def main(args: Array[String]): Unit = {
@@ -27,7 +27,33 @@ class TestEvaluate extends FunSuite {
         |    println(y)
         |  }
         |}
-    """.stripMargin.parse[Stat],
-    q""" Array[String]("test", "if", "it", "works", "for", "6")""")
+    """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6"))
   }
+/*
+  test("defining functions") {
+    eval("""
+        |object Test {
+        |   def loop(x: Int): Int = {
+        |       def helper(x: Int) = true
+        |       if (helper(x)) 0
+        |       else loop(x - 1)
+        |   }
+        |   def main(args: Array[String]): Unit = {
+        |       loop(42)
+        |   }
+        |}
+        """.stripMargin.parse[Stat])
+  }
+
+  test("compiled method calls") {
+    eval("""
+        |object Test {
+        |   def main(args: Array[String]): Unit = {
+        |       val x = 2
+        |       println(x.toString())
+        |       println(x + x)
+        |   }
+        |}
+        """.stripMargin.parse[Stat])
+  }*/
 }

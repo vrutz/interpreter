@@ -25,6 +25,7 @@ package object interpreter {
       case "toLong" => brt.toLong(op)
       case "toFloat" => brt.toFloat(op)
       case "toDouble" => brt.toDouble(op)
+      case "length" => op.asInstanceOf[Array[_ <: Any]].length
     })
 
   def invokePrimitiveBinaryMethod(name: String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {

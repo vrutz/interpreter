@@ -3,12 +3,13 @@ package interpreter
 
 import representations.Anonymous
 import representations._
+import scala.reflect.runtime.{universe => ru}
 import scala.meta.internal.{ast => m}
-import scala.meta.internal.ffi.Ffi._
+import scala.meta.internal.ffi.{Ffi => f}
 
 object Interpreter {
 
-  def eval(stat: Stat, args: Term = q"Array[String]()")(implicit ctx: Context): Value = ctx.typecheck(stat) match {
+  def eval(stat: Stat, args: Array[String] = Array[String]())(implicit ctx: Context): Value = ctx.typecheck(stat) match {
     // Stat can be either a block (multiple statements like class/object def and imports etc...)
     // Or it is an object containing the main function
 
@@ -17,16 +18,13 @@ object Interpreter {
       val env: Environment = stats1.foldLeft(new Environment()) {
         case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${ expr:Term }") =>
           println("Found Main")
-          val evalArgs = evaluate(args)._1
-          env + (MainFun, Main(evalArgs, expr)) + (Local(argsName), evalArgs)
+          env + (MainFun, Main(Instance(args), expr)) + (Local(argsName), Instance(args))
         case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
           env + (Local(name), Function(name, params, expr))
       }
-      // TODO Traverse the whole file to build the environment with all the different functions/fields etc...
-      // TODO find main method in an object and evaluate its body with args in the environment
+
       val Main(arguments, term) = env(MainFun)
-      println(term.show[Syntax])
-      // Find a way to add the arguments to the environment
+
       evaluate(term, env)
       Literal(())
 
@@ -49,7 +47,7 @@ object Interpreter {
   }
 
   private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-    term match {
+      val res = term match {
       /* Literals */
       case x: Lit => (Literal(x.value), env)
 
@@ -65,6 +63,7 @@ object Interpreter {
          case l @ Literal(value) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => ???
+         case i: Instance=> (i, env)
         }
 
     // Selection <expr>.<name>
@@ -72,26 +71,15 @@ object Interpreter {
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
-          // Some more unary operations
-          case (q"..$mods def toChar: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toChar")(e.value), envExpr)
-          case (q"..$mods def toByte: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toByte")(e.value), envExpr)
-          case (q"..$mods def toShort: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toShort")(e.value), envExpr)
-          case (q"..$mods def toInt: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toInt")(e.value), envExpr)
-          case (q"..$mods def toLong: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toLong")(e.value), envExpr)
-          case (q"..$mods def toFloat: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toFloat")(e.value), envExpr)
-          case (q"..$mods def toDouble: $tpeopt = ${expr: Term}", e: Literal) =>
-            (invokePrimitiveUnaryMethod("toDouble")(e.value), envExpr)
+          // All intrinsic operations such as toChar, toInt, length, ...
+          case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
+            (invokePrimitiveUnaryMethod(name.toString)(jvmInstance), envExpr)
 
           // The real work
           case (q"this", e: Instance) => ???
-          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
-          case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
+          // Use reflection to get fields etc...
+          // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
+          // case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
 
           case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
           case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
@@ -99,12 +87,33 @@ object Interpreter {
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
         // If name is a class, then use reflection to create the object
-      case q"${name: Term.Name}(..$aexprs)" if name.isClass =>
+      case q"${name: Term.Name}[$_]()" if name.isClass =>
+        val c: Class[_] = Class.forName(name.toString)
+        (Instance(c.newInstance), env)
+      case q"${name: Term.Name}()" if name.isClass =>
+        val c: Class[_] = Class.forName(name.toString)
+        (Instance(c.newInstance), env)
 
+      case q"${name: Term.Name}(..$aexprs)" if name.isClass =>
+        val c: Class[_] = Class.forName(name.toString)
+        // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping.get.))
+        // val ctor = c.getDeclaredConstructor(types)
         ???
-      case q"${name0: Term.Name}(..$aexprs)" =>
-        val Function(name, args, code) = env(Local(name0))
-        ???
+      case q"${name0: Term.Name}(..$aexprs)" if getFFI(name0) != f.Zero =>
+        println(getFFI(name0))
+        getFFI(name0) match {
+          case f.Intrinsic(className: String, methodName: String, signature: String) =>
+            ???
+          case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+            val c: Class[_] = Class.forName(jvmtoFullName(className))
+            val methods = c.getMethods().filter(m => m.getName() == fieldName && m.getParameterCount() == aexprs.size)
+            methods match {
+              case Array() => // Should not happen
+              case Array(m) => ???
+              case _ => 
+            }
+            ???
+        }
       case q"${expr: Term}(..$aexprs)" =>
         evaluate(q"$expr apply (..$aexprs)", env)
 
@@ -123,11 +132,11 @@ object Interpreter {
         val (result: Value, resultEnv: Environment) = name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
             name.defn.asInstanceOf[m.Member].ffi match {
-              case Intrinsic(className: String, methodName: String, signature: String) =>
+              case f.Intrinsic(className: String, methodName: String, signature: String) =>
                 (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
-              case JvmMethod(className: String, fieldName: String, signature: String) =>
+              case f.JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
-              case Zero => None
+              case f.Zero => None
             }
         }
         (result, resultEnv.pop._2)
@@ -187,6 +196,8 @@ object Interpreter {
 
       case t => (Literal(null), env)
     }
+    println(s"$term evaluates to ${res._1}")
+    res
   }
 
   private def link(pats: Seq[Pat], expr: Term, env: Environment)(implicit c: Context): Environment = {
@@ -237,4 +248,8 @@ object Interpreter {
     case t: Term.Name if t.toString == toFind =>
       println(s"Found one $toFind in expression: $t")
   }
+
+  private def jvmtoFullName(jvmName: String): String = jvmName.substring(1, jvmName.length - 1).replace('/', '.')
+
+  private def getFFI(name: Term.Name)(implicit ctx: Context) = name.defn.asInstanceOf[m.Member].ffi
 }
