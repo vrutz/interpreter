@@ -113,28 +113,17 @@ object Interpreter {
         // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping.get.))
         // val ctor = c.getDeclaredConstructor(types)
         ???
-      case q"${name: Term.Name}(..$aexprs)" if getFFI(name) != f.Zero =>
-        // $name0 is not a class so it is an instance or a method
-        val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
-        val argEnv: Environment = aexprs.foldLeft(env) {
-          case (e, arg"$name = $expr") => 
-            val (newExpr, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-          case (e, arg"$expr: _*") => 
-            val (newExpr, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-          case (e, expr: Term) => 
-            val (newExpr, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-        }
-        val args: Array[Value] = argsBuffer.toArray
 
+
+      case q"${name: Term.Name}(..$aexprs)" if getFFI(name) != f.Zero =>
         getFFI(name) match {
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
+            // Evaluate caller
             val (Instance(callerJVM), callerEnv) = evaluate(name, env)
+            // Evaluate arguments
+            val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
+
+            // Call the right method given the type of the caller
             if (callerJVM.getClass.isArray)
               (invokeArrayMethod(methodName)(callerJVM.asInstanceOf[AnyRef], args map {
                 case Instance(o) => o
@@ -147,14 +136,20 @@ object Interpreter {
               }), callerEnv)
 
           case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+            // Evaluate arguments
+            val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, env)
+
+            // Get class, and the right method
             val c: Class[_] = Class.forName(jvmToFullName(className))
             val argsType: Array[Class[_ <: Any]] = parsing(signature).arguments
             val method = c.getMethod(fieldName, argsType: _*)
             val module = c.getField("MODULE$").get(c)
+
+            // Call the method
             (method.invoke(module, args: _*) match {
               case null => Literal(())
               case _ => ???
-            }, argEnv)
+            }, argsEnv)
         }
 
       case q"$expr[$_]" => evaluate(expr, env)
@@ -340,5 +335,24 @@ object Interpreter {
           case NoSuccess(msg,_) =>
             throw new IllegalArgumentException("Could not parse '" + s + "': " + msg)
         }
+    }
+
+    private def evaluateArguments(args: Seq[Term.Arg], env: Environment)(implicit ctx: Context): (Array[Value], Environment) = {
+       val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+        val argEnv: Environment = args.foldLeft(env) {
+          case (e, arg"$name = $expr") => 
+            val (newExpr: Value, newEnv) = evaluate(expr, e)
+            argsBuffer += newExpr
+            newEnv
+          case (e, arg"$expr: _*") => 
+            val (newExpr: Value, newEnv) = evaluate(expr, e)
+            argsBuffer += newExpr
+            newEnv
+          case (e, expr: Term) => 
+            val (newExpr: Value, newEnv) = evaluate(expr, e)
+            argsBuffer += newExpr
+            newEnv
+        }
+        (argsBuffer.toArray, argEnv)
     }
 }
