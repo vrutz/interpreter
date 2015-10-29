@@ -56,6 +56,8 @@ object Interpreter {
   }
 
   private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
+      // println(s"to evaluate: $term")
+      // println(s"Env: $env")
       val res = term match {
       /* Literals */
       case x: Lit => (Literal(x.value), env)
@@ -80,7 +82,10 @@ object Interpreter {
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
-          // All intrinsic operations such as toChar, toInt, length, ...
+          // All intrinsic operations on arrays such as length, apply ...
+          case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
+            (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
+          // All intrinsic operations such as toChar, toInt, ...
           case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
             (invokePrimitiveUnaryMethod(name.toString)(jvmInstance), envExpr)
 
@@ -108,42 +113,49 @@ object Interpreter {
         // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping.get.))
         // val ctor = c.getDeclaredConstructor(types)
         ???
-      case q"${name0: Term.Name}(..$aexprs)" if getFFI(name0) != f.Zero =>
-        val justExprsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+      case q"${name: Term.Name}(..$aexprs)" if getFFI(name) != f.Zero =>
+        // $name0 is not a class so it is an instance or a method
+        val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
         val argEnv: Environment = aexprs.foldLeft(env) {
           case (e, arg"$name = $expr") => 
             val (newExpr, newEnv) = evaluate(expr, e)
-            justExprsBuffer += newExpr
+            argsBuffer += newExpr
             newEnv
           case (e, arg"$expr: _*") => 
             val (newExpr, newEnv) = evaluate(expr, e)
-            justExprsBuffer += newExpr
+            argsBuffer += newExpr
             newEnv
           case (e, expr: Term) => 
             val (newExpr, newEnv) = evaluate(expr, e)
-            justExprsBuffer += newExpr
+            argsBuffer += newExpr
             newEnv
         }
-        val justExprs = justExprsBuffer.toArray
+        val args: Array[Value] = argsBuffer.toArray
 
-        getFFI(name0) match {
+        getFFI(name) match {
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
-            ???
+            val (Instance(callerJVM), callerEnv) = evaluate(name, env)
+            if (callerJVM.getClass.isArray)
+              (invokeArrayMethod(methodName)(callerJVM.asInstanceOf[AnyRef], args map {
+                case Instance(o) => o
+                case Literal(l) => l
+              }: _*), callerEnv)
+            else
+              (invokeObjectBinaryMethod(methodName)(callerJVM, args(0) match {
+                case Instance(o) => o
+                case Literal(l) => l
+              }), callerEnv)
 
           case f.JvmMethod(className: String, fieldName: String, signature: String) =>
             val c: Class[_] = Class.forName(jvmToFullName(className))
-            val argsType: Array[Class[_ <: Any]] = parsing(signature).getSignature
+            val argsType: Array[Class[_ <: Any]] = parsing(signature).arguments
             val method = c.getMethod(fieldName, argsType: _*)
             val module = c.getField("MODULE$").get(c)
-
-            (method.invoke(module, justExprs: _*) match {
+            (method.invoke(module, args: _*) match {
               case null => Literal(())
               case _ => ???
             }, argEnv)
         }
-
-      case q"${expr: Term}(..$aexprs)" =>
-        evaluate(q"$expr apply (..$aexprs)", env)
 
       case q"$expr[$_]" => evaluate(expr, env)
 
@@ -155,25 +167,65 @@ object Interpreter {
           case arg"$expr: _*" => expr
           case expr: Term => expr
         }, callerEnv)
-        val (result: Value, resultEnv: Environment) = name.defn match {
+
+        name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
-            name.defn.asInstanceOf[m.Member].ffi match {
+            getFFI(name) match {
               case f.Intrinsic(className: String, methodName: String, signature: String) =>
                 (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
-              case f.Zero => None
+              case f.Zero =>
+                ???
             }
         }
-        (result, resultEnv.pop._2)
 
-      case q"${expr: Term} ${name: Term.Name} (..$aexprs)" =>
-        val (caller, callerEnv) = evaluate(expr, env)
-        val paramss: Seq[Term.Param] = name.defn match {
-          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" => paramss
+      case q"${expr: Term} ${name: Term.Name} (..${aexprs: Seq[Term.Arg]})" =>
+        // Evaluate the caller
+        val (caller: Instance, callerEnv) = evaluate(expr, env)
+        // Evaluate the arguments
+        val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+        val argsEnv = aexprs.foldLeft(callerEnv) {
+          case (e, arg"$name = $expr0") =>
+            val (argEval, argEnv) = evaluate(expr0, e)
+            argsBuffer += argEval
+            argEnv
+          case (e, arg"$expr0: _*") =>
+            val (argEval, argEnv) = evaluate(expr0, e)
+            argsBuffer += argEval
+            argEnv
+          case (e, expr0: Term) =>
+            val (argEval, argEnv) = evaluate(expr0, e)
+            argsBuffer += argEval
+            argEnv
         }
-        // TODO need to be careful with the different ways to use arguments but let's do it like this for now
-        ???
+        val args: Array[Value] = argsBuffer.toArray
+
+        // Find out what kind of function $name is
+        name.defn match {
+          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" =>
+            getFFI(name) match {
+              case f.Intrinsic(className: String, methodName: String, signature: String) =>
+                // If intrinsic, either an instance or an array
+                caller match {
+                  case Instance(array) if array.getClass.isArray =>
+                    (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
+                      case Instance(o) => o
+                      case Literal(l) => l
+                    }: _*), argsEnv)
+                  case Instance(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
+                      case Instance(o) => o
+                      case Literal(l) => l
+                    }), argsEnv)
+                }
+              case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+                ???
+              case f.Zero =>
+                ???
+            }
+        }
+      case q"${expr: Term}(..$aexprs)" =>
+        evaluate(q"$expr apply (..$aexprs)", env)
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
       case q"!${expr: Term}" =>

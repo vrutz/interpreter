@@ -1,7 +1,7 @@
 package scala.meta
 
 import representations._
-import scala.runtime.{BoxesRunTime => brt}
+import scala.runtime.{BoxesRunTime => brt, ScalaRunTime => srt}
 import scala.reflect.NameTransformer.decode
 
 /**
@@ -25,7 +25,6 @@ package object interpreter {
       case "toLong" => brt.toLong(op)
       case "toFloat" => brt.toFloat(op)
       case "toDouble" => brt.toDouble(op)
-      case "length" => op.asInstanceOf[Array[_ <: Any]].length
     })
 
   def invokePrimitiveBinaryMethod(name: String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
@@ -58,4 +57,28 @@ package object interpreter {
       case "?" => ???
       case "@" => ???
   })
+
+  def invokeObjectBinaryMethod(name:String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
+    case "==" => srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
+    case "!=" => !srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
+    case "equals" => op1 equals op2
+    // case "eq" => op1 eq op2
+    // case "ne" => op1 ne op2
+    case _ => ???
+  })
+
+  def invokeObjectUnaryMethod(name:String)(op: Any): Literal = Literal(decode(name) match {
+    case "hashCode" => op.hashCode
+    case "toString" => op.toString
+    case "##" => srt.hash(op)
+    case _ => ???
+  })
+
+  def invokeArrayMethod(name: String)(op: AnyRef, args: Any*): Literal = Literal(decode(name) match {
+    case "length" => srt.array_length(op)
+    case "apply" => srt.array_apply(op, args(0).asInstanceOf[Int])
+    case "update" => srt.array_update(op, args(0).asInstanceOf[Int], args(1))
+    case "clone" => srt.array_clone(op)
+  })
+  
 }

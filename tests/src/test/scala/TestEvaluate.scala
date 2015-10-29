@@ -27,8 +27,10 @@ class TestEvaluate extends FunSuite {
             |object Test {
             |  def main(args: Array[String]): Unit = {
             |    val x = args.length
+            |    args update (0, "Hello")
             |    val y = x * x
             |    println(y)
+            |    println(args(0) + x)
             |  }
             |}
         """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6")) match {

@@ -10,6 +10,7 @@ sealed trait Value {
     case Instance(jvmInstance) => jvmInstance.toString
     case l: Literal => l.toString
     case Function(name, args, code) => s"def $name($args) = $code"
+    case Main(args, code) => ""// s"def main($args) = $code"
   }
 }
 
