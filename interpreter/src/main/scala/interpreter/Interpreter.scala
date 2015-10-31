@@ -86,8 +86,17 @@ object Interpreter {
           case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
           // All intrinsic operations such as toChar, toInt, ...
+          case (_, Literal(lit)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
+            val f.Intrinsic(className, methodName, signature) = getFFI(name)
+            if (className.head != 'L') {
+              (invokePrimitiveUnaryMethod(methodName)(lit), envExpr)
+            } else {
+              (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
+            }
           case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
-            (invokePrimitiveUnaryMethod(name.toString)(jvmInstance), envExpr)
+            val f.Intrinsic(className, methodName, signature) = getFFI(name)
+            (invokeObjectUnaryMethod(methodName)(jvmInstance), envExpr)
+
 
           // The real work
           case (q"this", e: Instance) => ???
@@ -95,8 +104,8 @@ object Interpreter {
           // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
           // case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
 
-          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
-          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => (evalExpr, envExpr)
+          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => ???
+          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => ???
         }
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
@@ -177,24 +186,9 @@ object Interpreter {
 
       case q"${expr: Term} ${name: Term.Name} (..${aexprs: Seq[Term.Arg]})" =>
         // Evaluate the caller
-        val (caller: Instance, callerEnv) = evaluate(expr, env)
+        val (caller, callerEnv) = evaluate(expr, env)
         // Evaluate the arguments
-        val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
-        val argsEnv = aexprs.foldLeft(callerEnv) {
-          case (e, arg"$name = $expr0") =>
-            val (argEval, argEnv) = evaluate(expr0, e)
-            argsBuffer += argEval
-            argEnv
-          case (e, arg"$expr0: _*") =>
-            val (argEval, argEnv) = evaluate(expr0, e)
-            argsBuffer += argEval
-            argEnv
-          case (e, expr0: Term) =>
-            val (argEval, argEnv) = evaluate(expr0, e)
-            argsBuffer += argEval
-            argEnv
-        }
-        val args: Array[Value] = argsBuffer.toArray
+        val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
 
         // Find out what kind of function $name is
         name.defn match {
@@ -220,6 +214,8 @@ object Interpreter {
             }
         }
       case q"${expr: Term}(..$aexprs)" =>
+        println(expr)
+        println(aexprs)
         evaluate(q"$expr apply (..$aexprs)", env)
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
@@ -337,8 +333,9 @@ object Interpreter {
         }
     }
 
-    private def evaluateArguments(args: Seq[Term.Arg], env: Environment)(implicit ctx: Context): (Array[Value], Environment) = {
-       val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+    private def evaluateArguments(args: Seq[Term.Arg], env: Environment)
+      (implicit ctx: Context): (Array[Value], Environment) = {
+      val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
         val argEnv: Environment = args.foldLeft(env) {
           case (e, arg"$name = $expr") => 
             val (newExpr: Value, newEnv) = evaluate(expr, e)

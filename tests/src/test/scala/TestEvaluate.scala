@@ -38,6 +38,7 @@ class TestEvaluate extends FunSuite {
         case _ => false
     })
   }
+
 /*
   test("defining functions") {
     eval("""
@@ -53,17 +54,18 @@ class TestEvaluate extends FunSuite {
         |}
         """.stripMargin.parse[Stat])
   }
+  */
 
   test("compiled method calls") {
     eval("""
         |object Test {
         |   def main(args: Array[String]): Unit = {
         |       val x = 2
-        |       println(x.toString())
+        |       println(x.toString)
+        |       println(x.toDouble)
         |       println(x + x)
         |   }
         |}
         """.stripMargin.parse[Stat])
   }
-  */
 }
