@@ -67,4 +67,30 @@ class TestEvaluate extends FunSuite {
         |}
         """.stripMargin.parse[Stat])
   }
+
+  test("patterns in decalrations") {
+    eval("""
+        |object Test {
+        |   def main(args: Array[String]): Unit = {
+        |       val (x, y) = (2, 3)
+        |       println(x.toString)
+        |       println(y.toDouble)
+        |       println(x + y)
+        |   }
+        |}
+        """.stripMargin.parse[Stat])
+  }
+
+  test("more complex patterns in decalrations") {
+    eval("""
+        |object Test {
+        |   def main(args: Array[String]): Unit = {
+        |       val ((List(x), y), z) = ((List(2), 3), 4)
+        |       println(x.toString)
+        |       println(y.toDouble)
+        |       println(x + y + z)
+        |   }
+        |}
+        """.stripMargin.parse[Stat])
+  }
 }

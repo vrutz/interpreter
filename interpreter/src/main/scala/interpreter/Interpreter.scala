@@ -355,23 +355,23 @@ object Interpreter {
         }
     }
 
-    private def evaluateArguments(args: Seq[Term.Arg], env: Environment)
-      (implicit ctx: Context): (Array[Value], Environment) = {
-      val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
-        val argEnv: Environment = args.foldLeft(env) {
-          case (e, arg"$name = $expr") => 
-            val (newExpr: Value, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-          case (e, arg"$expr: _*") => 
-            val (newExpr: Value, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-          case (e, expr: Term) => 
-            val (newExpr: Value, newEnv) = evaluate(expr, e)
-            argsBuffer += newExpr
-            newEnv
-        }
-        (argsBuffer.toArray, argEnv)
-    }
+  private def evaluateArguments(args: Seq[Term.Arg], env: Environment)
+    (implicit ctx: Context): (Array[Value], Environment) = {
+    val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
+      val argEnv: Environment = args.foldLeft(env) {
+        case (e, arg"$name = $expr") => 
+          val (newExpr: Value, newEnv) = evaluate(expr, e)
+          argsBuffer += newExpr
+          newEnv
+        case (e, arg"$expr: _*") => 
+          val (newExpr: Value, newEnv) = evaluate(expr, e)
+          argsBuffer += newExpr
+          newEnv
+        case (e, expr: Term) => 
+          val (newExpr: Value, newEnv) = evaluate(expr, e)
+          argsBuffer += newExpr
+          newEnv
+      }
+      (argsBuffer.toArray, argEnv)
+  }
 }
