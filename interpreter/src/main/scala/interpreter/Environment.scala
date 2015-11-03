@@ -16,5 +16,5 @@ final class Environment(stack: CallStack) {
   def pop: (Frame, Environment) = (stack.head, new Environment(stack.tail))
   def get: Frame = stack.head
 
-  override def toString = stack.mkString("\n")
+  override def toString = s"""Environment(${stack.mkString("\n")})"""
 }

@@ -22,3 +22,4 @@ interpreter.iml
 # Macs...
 .DS_Store
 .ensime_cache
+.ensime_session

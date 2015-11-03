@@ -7,6 +7,7 @@ import scala.meta._
  */
 sealed trait Value {
   override def toString: String = this match {
+    case Instance(array: Array[_]) => array.toList.toString
     case Instance(jvmInstance) => jvmInstance.toString
     case l: Literal => l.toString
     case Function(name, args, code) => s"def $name($args) = $code"

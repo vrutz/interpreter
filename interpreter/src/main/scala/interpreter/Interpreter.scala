@@ -24,7 +24,8 @@ object Interpreter {
     // Or it is an object containing the main function
 
     case q"object $name extends $template" =>
-      val template"{ ..$_ } with ..$_ { $_ => ..$stats1 }" = template
+      val template"{ ..$_} with ..$_ { $_ => ..$stats1 }" = template
+
       val env: Environment = stats1.foldLeft(new Environment()) {
         case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${ expr:Term }") =>
           env + (MainFun, Main(Instance(args), expr)) + (Local(argsName), Instance(args))
@@ -33,7 +34,6 @@ object Interpreter {
       }
 
       val Main(arguments, term) = env(MainFun)
-
       evaluate(term, env)
       Literal(())
 
@@ -56,13 +56,21 @@ object Interpreter {
   }
 
   private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-      // println(s"to evaluate: $term")
-      // println(s"Env: $env")
-      val res = term match {
+    // println(s"to evaluate: $term")
+    // println(s"Env: $env")
+    val res = term match {
       /* Literals */
       case x: Lit => (Literal(x.value), env)
 
       /* Expressions */
+      // if (<expr>) expr else <expr>
+      case q"if ($cond) $thn else $els" =>
+      evaluate(cond, env) match {
+        case (Literal(true), e) => evaluate(thn, e)
+        case (Literal(false), e) => evaluate(els, e)
+        case (_, e) => ???
+      }
+
       // this
       case q"this" => (env(This), env)
 
@@ -74,7 +82,7 @@ object Interpreter {
          case l @ Literal(value) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => ???
-         case i: Instance=> (i, env)
+         case i: Instance => (i, env)
         }
 
     // Selection <expr>.<name>
@@ -85,6 +93,7 @@ object Interpreter {
           // All intrinsic operations on arrays such as length, apply ...
           case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
+
           // All intrinsic operations such as toChar, toInt, ...
           case (_, Literal(lit)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
             val f.Intrinsic(className, methodName, signature) = getFFI(name)
@@ -123,12 +132,13 @@ object Interpreter {
         // val ctor = c.getDeclaredConstructor(types)
         ???
 
-
-      case q"${name: Term.Name}(..$aexprs)" if getFFI(name) != f.Zero =>
+      case q"${name: Term.Name}(..$aexprs)" =>
         getFFI(name) match {
+          // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
             // Evaluate caller
             val (Instance(callerJVM), callerEnv) = evaluate(name, env)
+
             // Evaluate arguments
             val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
 
@@ -144,6 +154,7 @@ object Interpreter {
                 case Literal(l) => l
               }), callerEnv)
 
+          // Compiled function
           case f.JvmMethod(className: String, fieldName: String, signature: String) =>
             // Evaluate arguments
             val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, env)
@@ -159,9 +170,22 @@ object Interpreter {
               case null => Literal(())
               case _ => ???
             }, argsEnv)
+
+          // User defined function
+          case f.Zero =>
+            // get the function from the environment
+            val Function(funName, args: Seq[Term.Param], code) = env(Local(name))
+            // Evaluate the arguments and add them to the environment
+            val (argsValues: Array[Value], evArgsEnv: Environment) = evaluateArguments(aexprs, env)
+
+            val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
+              case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) => 
+                e + (Local(paramname.name), av)
+            }
+            evaluate(code, argsEnv)
         }
 
-      case q"$expr[$_]" => evaluate(expr, env)
+      case q"${expr: Term}[$_]" => evaluate(expr, env)
 
       // Infix application to one argument
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
@@ -214,8 +238,6 @@ object Interpreter {
             }
         }
       case q"${expr: Term}(..$aexprs)" =>
-        println(expr)
-        println(aexprs)
         evaluate(q"$expr apply (..$aexprs)", env)
 
       // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
@@ -321,14 +343,14 @@ object Interpreter {
 
   implicit val parser = signature
 
-  private def parsing[T](s: String)(implicit p: Parser[T]):T = {
+  private def parsing[T](s: String)(implicit p: Parser[T]): T = {
     // Wrap the parser in the phrase parse to make sure all input is consumed
     val phraseParser = phrase(p)
     // We need to wrap the string in a reader so our parser can digest it
     val input = new CharSequenceReader(s) 
     phraseParser(input) match {
-          case Success(t,_)     => t
-          case NoSuccess(msg,_) =>
+          case Success(t, _)     => t
+          case NoSuccess(msg, _) =>
             throw new IllegalArgumentException("Could not parse '" + s + "': " + msg)
         }
     }
