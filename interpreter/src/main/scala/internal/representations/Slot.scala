@@ -1,4 +1,5 @@
 package scala.meta
+package internal
 package representations
 
 /**
@@ -16,7 +17,7 @@ case object MainFun extends Slot
 sealed trait Name extends Slot
 
 case object Anonymous extends Name
-final case class Local(name: scala.meta.Name) extends Name {
+final case class Local(name: Term.Name) extends Name {
   override def equals(other: Any): Boolean = other match {
     case Local(otherName) => s.equals(otherName.toString, name.toString)
     case _ => false

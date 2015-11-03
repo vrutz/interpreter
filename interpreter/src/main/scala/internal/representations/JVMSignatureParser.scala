@@ -1,4 +1,5 @@
 package scala.meta
+package internal
 package representations
 
 import scala.util.parsing.combinator._

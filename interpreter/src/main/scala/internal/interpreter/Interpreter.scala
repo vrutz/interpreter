@@ -1,9 +1,10 @@
 package scala.meta
+package internal
 package interpreter
 
-import representations._
-import representations.JVMSignature
-import representations.JVMSignatureParser._
+import scala.meta.internal.representations._
+import scala.meta.internal.representations.JVMSignature
+import scala.meta.internal.representations.JVMSignatureParser._
 
 import scala.util.parsing.combinator._
 import scala.util.parsing.input.CharSequenceReader
@@ -27,8 +28,8 @@ object Interpreter {
       val template"{ ..$_} with ..$_ { $_ => ..$stats1 }" = template
 
       val env: Environment = stats1.foldLeft(new Environment()) {
-        case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${ expr:Term }") =>
-          env + (MainFun, Main(Instance(args), expr)) + (Local(argsName), Instance(args))
+        case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}") =>
+          env + (MainFun, Main(Literal(args), expr)) + (Local(argsName), Literal(args))
         case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
           env + (Local(name), Function(name, params, expr))
       }
@@ -41,19 +42,15 @@ object Interpreter {
     
     case q"{ ..$stats }" => 
       println(s"Term $stat");???
-
-    
-    case q"import ..$importersnel" =>
-      println("import $stat"); ???
   }
 
-  private def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
-    terms.foldRight(List[Value](), env) {
-      case (expr, (evaluatedExprs, newEnv)) =>
-        val (newEvaluatedExpr, envToKeep) = evaluate(expr, newEnv)
-        (evaluatedExprs ::: List(newEvaluatedExpr), envToKeep)
-    }
-  }
+  // private def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
+  //   terms.foldRight(List[Value](), env) {
+  //     case (expr, (evaluatedExprs, newEnv)) =>
+  //       val (newEvaluatedExpr, envToKeep) = evaluate(expr, newEnv)
+  //       (evaluatedExprs ::: List(newEvaluatedExpr), envToKeep)
+  //   }
+  // }
 
   private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
@@ -82,7 +79,6 @@ object Interpreter {
          case l @ Literal(value) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => ???
-         case i: Instance => (i, env)
         }
 
     // Selection <expr>.<name>
@@ -91,7 +87,7 @@ object Interpreter {
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
           // All intrinsic operations on arrays such as length, apply ...
-          case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
+          case (_, Literal(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
 
           // All intrinsic operations such as toChar, toInt, ...
@@ -102,13 +98,13 @@ object Interpreter {
             } else {
               (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
             }
-          case (_, Instance(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
+          case (_, Literal(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
             val f.Intrinsic(className, methodName, signature) = getFFI(name)
             (invokeObjectUnaryMethod(methodName)(jvmInstance), envExpr)
 
 
           // The real work
-          case (q"this", e: Instance) => ???
+          case (q"this", e: Literal) => ???
           // Use reflection to get fields etc...
           // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
           // case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
@@ -121,10 +117,10 @@ object Interpreter {
         // If name is a class, then use reflection to create the object
       case q"${name: Term.Name}[$_]()" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
-        (Instance(c.newInstance), env)
+        (Literal(c.newInstance), env)
       case q"${name: Term.Name}()" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
-        (Instance(c.newInstance), env)
+        (Literal(c.newInstance), env)
 
       case q"${name: Term.Name}(..$aexprs)" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
@@ -137,7 +133,7 @@ object Interpreter {
           // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
             // Evaluate caller
-            val (Instance(callerJVM), callerEnv) = evaluate(name, env)
+            val (Literal(callerJVM), callerEnv) = evaluate(name, env)
 
             // Evaluate arguments
             val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
@@ -145,12 +141,10 @@ object Interpreter {
             // Call the right method given the type of the caller
             if (callerJVM.getClass.isArray)
               (invokeArrayMethod(methodName)(callerJVM.asInstanceOf[AnyRef], args map {
-                case Instance(o) => o
                 case Literal(l) => l
               }: _*), callerEnv)
             else
               (invokeObjectBinaryMethod(methodName)(callerJVM, args(0) match {
-                case Instance(o) => o
                 case Literal(l) => l
               }), callerEnv)
 
@@ -180,7 +174,9 @@ object Interpreter {
 
             val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
               case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) => 
-                e + (Local(paramname.name), av)
+                paramname match {
+                  case nameParam: Term.Name => e + (Local(nameParam), av)
+                }
             }
             evaluate(code, argsEnv)
         }
@@ -221,13 +217,11 @@ object Interpreter {
               case f.Intrinsic(className: String, methodName: String, signature: String) =>
                 // If intrinsic, either an instance or an array
                 caller match {
-                  case Instance(array) if array.getClass.isArray =>
+                  case Literal(array) if array.getClass.isArray =>
                     (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
-                      case Instance(o) => o
                       case Literal(l) => l
                     }: _*), argsEnv)
-                  case Instance(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
-                      case Instance(o) => o
+                  case Literal(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
                       case Literal(l) => l
                     }), argsEnv)
                 }
