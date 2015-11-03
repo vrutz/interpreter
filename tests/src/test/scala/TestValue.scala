@@ -4,7 +4,8 @@
 package scala.meta
 import interpreter._
 import org.scalatest._
-import representations.Literal
+import internal.interpreter._
+import internal.representations.Literal
 
 class TestValue extends FunSuite {
 

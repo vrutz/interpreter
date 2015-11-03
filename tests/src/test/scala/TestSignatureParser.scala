@@ -1,7 +1,7 @@
 package scala.meta
 
-import representations.JVMSignature
-import representations.JVMSignatureParser._
+import internal.representations.JVMSignature
+import internal.representations.JVMSignatureParser._
 import org.scalatest._
 import scala.util.parsing.combinator._
 import scala.util.parsing.input.CharSequenceReader

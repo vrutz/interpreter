@@ -3,8 +3,8 @@ package scala.meta
 import org.scalatest.FunSuite
 
 import scala.meta.dialects.Scala211
-import interpreter.Interpreter._
-import representations.Literal
+import internal.interpreter.Interpreter._
+import internal.representations.Literal
 /**
  * Created by rutz on 06/10/15.
  */
