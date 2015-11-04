@@ -9,12 +9,12 @@ import scala.meta.internal.representations._
  * Created by rutz on 03/11/15.
  */
 
-
 final class Environment(stack: CallStack) extends Env {
   def this() = this(List[Frame](Map[Slot, Value]()))
   def this(e: EnvImpl) = this(List[Frame](e.slots.map {
       case (name: Term.Name, value: Any) => Local(name) -> Literal(value)
     }.toMap))
+  def this(e: Env) = this(e.asInstanceOf[EnvImpl])
 
   // Inherited from interpreter.Env
   def +(name: Term.Name, value: Any): Environment = this + (Local(name), Literal(value))

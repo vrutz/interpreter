@@ -2,12 +2,15 @@ package scala.meta
 
 import org.scalatest.FunSuite
 
-import scala.meta.dialects.Scala211
-import internal.interpreter.Interpreter._
-import internal.representations.Literal
+import tql._
+import interpreter._
+
+import internal.representations.{Literal, MainArgs}
+
 /**
  * Created by rutz on 06/10/15.
  */
+
 class TestEvaluate extends FunSuite {
   val scalaLibrary = sys.props("sbt.paths.scalalibrary.classes")
   // val classpath = sys.props("sbt.paths.scrutinee.classes")
@@ -23,7 +26,7 @@ class TestEvaluate extends FunSuite {
   }
 
   test("simple main with args") {
-    assert(eval("""
+    val stat: Stat = """
             |object Test {
             |  def main(args: Array[String]): Unit = {
             |    val x = args.length
@@ -33,7 +36,14 @@ class TestEvaluate extends FunSuite {
             |    println(args(0) + x)
             |  }
             |}
-        """.stripMargin.parse[Stat], Array[String]("test", "if", "it", "works", "for", "6")) match {
+        """.stripMargin.parse[Stat]
+
+    val args: Term.Name = (stat.topDownBreak collect {
+      case q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}" => argsName
+    }).head
+
+    val env = Env(args -> Array[String]("test", "if", "it", "works", "for", "6"))
+    assert(evalMain(stat, env) match {
         case Literal(()) => true
         case _ => false
     })
@@ -41,22 +51,19 @@ class TestEvaluate extends FunSuite {
 
   test("defining functions") {
     eval("""
-        |object Test {
+        |{
         |   def loop(x: Int): Int = {
         |       def helper(x: Int) = true
         |       if (helper(x)) 0
         |       else loop(x - 1)
         |   }
-        |   def main(args: Array[String]): Unit = {
-        |       val x = loop(42)
-        |       println(x)
-        |   }
+        |   loop(42)
         |}
-        """.stripMargin.parse[Stat])
+        """.stripMargin.parse[Term])
   }
 
   test("compiled method calls") {
-    eval("""
+    evalMain("""
         |object Test {
         |   def main(args: Array[String]): Unit = {
         |       val x = 2

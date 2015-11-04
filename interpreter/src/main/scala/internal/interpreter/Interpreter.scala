@@ -20,30 +20,6 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  def eval(stat: Stat, args: Array[String] = Array[String]())(implicit ctx: Context): Value = ctx.typecheck(stat) match {
-    // Stat can be either a block (multiple statements like class/object def and imports etc...)
-    // Or it is an object containing the main function
-
-    case q"object $name extends $template" =>
-      val template"{ ..$_} with ..$_ { $_ => ..$stats1 }" = template
-
-      val env: Environment = stats1.foldLeft(new Environment()) {
-        case (env, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}") =>
-          env + (MainFun, Main(Literal(args), expr)) + (Local(argsName), Literal(args))
-        case (env, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
-          env + (Local(name), Function(name, params, expr))
-      }
-
-      val Main(arguments, term) = env(MainFun)
-      evaluate(term, env)
-      Literal(())
-
-    case t: Term => evaluate(t.desugar)._1
-    
-    case q"{ ..$stats }" => 
-      println(s"Term $stat");???
-  }
-
   // private def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
   //   terms.foldRight(List[Value](), env) {
   //     case (expr, (evaluatedExprs, newEnv)) =>
@@ -52,7 +28,7 @@ object Interpreter {
   //   }
   // }
 
-  private def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
+  private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
     val res = term match {

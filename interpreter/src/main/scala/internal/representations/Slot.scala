@@ -13,13 +13,14 @@ sealed trait Slot
 case object This extends Slot
 case object Super extends Slot
 case object MainFun extends Slot
+case object MainArgs extends Slot
 
 sealed trait Name extends Slot
 
 case object Anonymous extends Name
 final case class Local(name: Term.Name) extends Name {
   override def equals(other: Any): Boolean = other match {
-    case Local(otherName) => s.equals(otherName.toString, name.toString)
+    case Local(otherName) => s.equals(otherName, name)
     case _ => false
   }
 

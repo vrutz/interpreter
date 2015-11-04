@@ -18,9 +18,11 @@ class EnvImpl(val slots: Map[Term.Name, Any] = Map[Term.Name, Any]()) extends En
       case _ => Nil
     }.toMap[Term.Name, Any])
   def +(name: Term.Name, value: Any): Env = new EnvImpl(slots + (name -> value))
+
+  override def toString = s"""Environment(${slots.mkString(", ")})"""
 }
 
 object Env {
-  def apply(): Env = new EnvImpl()
-  def apply(keyval: (Term.Name, Any)*): Env = new EnvImpl(keyval.toMap)
+  def apply(): EnvImpl = new EnvImpl()
+  def apply(keyval: (Term.Name, Any)*): EnvImpl = new EnvImpl(keyval.toMap)
 }
