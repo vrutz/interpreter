@@ -9,7 +9,6 @@ import scala.reflect.NameTransformer.decode
  * Created by rutz on 05/10/15.
  */
 
-
 package object interpreter {
   type Frame = Map[Slot, Value]
   type CallStack = List[Frame]

@@ -38,11 +38,7 @@ class TestEvaluate extends FunSuite {
             |}
         """.stripMargin.parse[Stat]
 
-    val args: Term.Name = (stat.topDownBreak collect {
-      case q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}" => argsName
-    }).head
-
-    val env = Env(args -> Array[String]("test", "if", "it", "works", "for", "6"))
+    val env = Env("args" -> Array[String]("test", "if", "it", "works", "for", "6"))
     assert(evalMain(stat, env) match {
         case Literal(()) => true
         case _ => false

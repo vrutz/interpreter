@@ -9,20 +9,22 @@ import internal.representations._
  */
 
 trait Env {
-  def +(name: Term.Name, value: Any): Env
+  def +(name: String, value: Any): Env
 }
 
-class EnvImpl(val slots: Map[Term.Name, Any] = Map[Term.Name, Any]()) extends Env {
+class EnvImpl(val slots: Map[String, Any] = Map[String, Any]()) extends Env {
   def this(e: Environment) = this(e.get.flatMap {
-      case (Local(name), Literal(l)) => List(name -> l)
+      case (Local(name), Literal(l)) => List(name.toString -> l)
       case _ => Nil
-    }.toMap[Term.Name, Any])
-  def +(name: Term.Name, value: Any): Env = new EnvImpl(slots + (name -> value))
+    }.toMap[String, Any])
+  def +(name: String, value: Any): Env = new EnvImpl(slots + (name -> value))
+
+  def apply(name: String): Any = slots(name)
 
   override def toString = s"""Environment(${slots.mkString(", ")})"""
 }
 
 object Env {
   def apply(): EnvImpl = new EnvImpl()
-  def apply(keyval: (Term.Name, Any)*): EnvImpl = new EnvImpl(keyval.toMap)
+  def apply(keyval: (String, Any)*): EnvImpl = new EnvImpl(keyval.toMap)
 }

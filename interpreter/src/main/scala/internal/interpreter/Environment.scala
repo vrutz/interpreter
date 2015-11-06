@@ -11,13 +11,9 @@ import scala.meta.internal.representations._
 
 final class Environment(stack: CallStack) extends Env {
   def this() = this(List[Frame](Map[Slot, Value]()))
-  def this(e: EnvImpl) = this(List[Frame](e.slots.map {
-      case (name: Term.Name, value: Any) => Local(name) -> Literal(value)
-    }.toMap))
-  def this(e: Env) = this(e.asInstanceOf[EnvImpl])
 
   // Inherited from interpreter.Env
-  def +(name: Term.Name, value: Any): Environment = this + (Local(name), Literal(value))
+  def +(name: String, value: Any): Environment = ???//this + (Local(name), Literal(value))
 
   // Usable only in Environment
   def apply(name: Slot): Value = stack.head(name)
@@ -27,4 +23,15 @@ final class Environment(stack: CallStack) extends Env {
   def get: Frame = stack.head
 
   override def toString = s"""Env(${this.get.mkString("\n")})"""
+}
+
+object Environment {
+  def apply(env: EnvImpl, stat: Tree)(implicit ctx: Context) = {
+    val toBuildEnvironment = (stat collect {
+       // Check if there is a definition for name in the Tree as well
+      case name: Term.Name if env.slots.isDefinedAt(name.toString) =>
+        Local(name) -> Literal(env(name.toString))
+    }).toMap[Slot, Value]
+    new Environment(List[Frame](toBuildEnvironment))
+  }
 }
