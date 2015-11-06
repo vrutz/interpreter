@@ -9,6 +9,7 @@ package object interpreter {
   def evalMain(stat0: Stat, env: EnvImpl = Env())(implicit ctx: Context): Value = {
     val stat = ctx.typecheck(stat0).asInstanceOf[Stat]
     val internalEnv = Environment(env, stat)
+    // println(internalEnv)
 
     stat match {
       // Stat can be either a block (multiple statements like class/object def and imports etc...)

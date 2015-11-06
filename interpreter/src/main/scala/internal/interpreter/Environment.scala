@@ -28,7 +28,7 @@ final class Environment(stack: CallStack) extends Env {
 object Environment {
   def apply(env: EnvImpl, stat: Tree)(implicit ctx: Context) = {
     val toBuildEnvironment = (stat collect {
-       // Check if there is a definition for name in the Tree as well
+       // Check if there is a definition for name in the Tree and if it is not already there as well
       case name: Term.Name if env.slots.isDefinedAt(name.toString) =>
         Local(name) -> Literal(env(name.toString))
     }).toMap[Slot, Value]
