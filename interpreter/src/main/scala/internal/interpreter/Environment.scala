@@ -27,9 +27,11 @@ final class Environment(stack: CallStack) extends Env {
 
 object Environment {
   def apply(env: EnvImpl, stat: Tree)(implicit ctx: Context) = {
+    val names = scala.collection.mutable.SortedSet[String]()
     val toBuildEnvironment = (stat collect {
        // Check if there is a definition for name in the Tree and if it is not already there as well
-      case name: Term.Name if env.slots.isDefinedAt(name.toString) =>
+      case name: Term.Name if env.slots.isDefinedAt(name.toString) && !names.contains(name.toString) =>
+        names += name.toString
         Local(name) -> Literal(env(name.toString))
     }).toMap[Slot, Value]
     new Environment(List[Frame](toBuildEnvironment))

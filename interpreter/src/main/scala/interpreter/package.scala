@@ -20,8 +20,8 @@ package object interpreter {
 
         val completeEnv: Environment = stats1.foldLeft(internalEnv) {
           case (tEnv, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}") =>
-            val args = tEnv.get.getOrElse(Local(argsName), Nil)
-            tEnv + (MainFun, Main(Literal(args), expr)) + (Local(argsName), Literal(args))
+            val args: Literal = tEnv.get.getOrElse(Local(argsName), Literal(Array[String]())).asInstanceOf[Literal]
+            tEnv + (MainFun, Main(Literal(args), expr)) + (Local(argsName), args)
           case (tEnv, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
             tEnv + (Local(name), Function(name, params, expr))
         }

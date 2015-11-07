@@ -51,11 +51,11 @@ object Interpreter {
       case q"super" => (env(Super), env)
       case q"super[$_]" => (env(Super), env)
 
-      case name: Term.Name => env(Local(name)) match {
+      case name: Term.Name => {println(env);env(Local(name)) match {
          case l @ Literal(value) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => ???
-        }
+        }}
 
     // Selection <expr>.<name>
     // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
