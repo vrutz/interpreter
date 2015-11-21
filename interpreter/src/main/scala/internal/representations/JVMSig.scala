@@ -2,6 +2,7 @@ package scala.meta
 package internal
 package representations
 
+import scala.util.parsing.input.CharSequenceReader
 import scala.util.parsing.combinator._
 import scala.runtime.ScalaRunTime._
 
@@ -24,6 +25,20 @@ object JVMSig extends RegexParsers {
     case Nil => JVMSig(List())
     case sig: List[Class[_]] => JVMSig(sig)
   }
+
+  implicit val parser = signature
+
+  private[internal] def parsing[T](s: String)(implicit p: Parser[T]): T = {
+    // Wrap the parser in the phrase parse to make sure all input is consumed
+    val phraseParser = phrase(p)
+    // We need to wrap the string in a reader so our parser can digest it
+    val input = new CharSequenceReader(s) 
+    phraseParser(input) match {
+          case Success(t, _)     => t
+          case NoSuccess(msg, _) =>
+            throw new IllegalArgumentException("Could not parse '" + s + "': " + msg)
+        }
+    }
 }
 
 final case class JVMSig(arguments: List[Class[_ <: Any]]) {
