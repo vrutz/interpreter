@@ -12,8 +12,6 @@ sealed trait Slot
 
 case object This extends Slot
 case object Super extends Slot
-case object MainFun extends Slot
-case object MainArgs extends Slot
 
 sealed trait Name extends Slot
 

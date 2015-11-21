@@ -11,14 +11,12 @@ sealed trait Value {
     // case Instance(jvmInstance) => jvmInstance.toString
     case l: Literal => l.toString
     case Function(name, args, code) => s"def $name($args) = $code"
-    case Main(args, code) => ""// s"def main($args) = $code"
   }
 }
 
 // final case class Instance(jvmInstance: Any) extends Value
 
 final case class Function(name: Term.Name, params: Seq[Term.Param], code: Term) extends Value
-final case class Main(args: Value, code: Term) extends Value
 
 final case class Literal(value: Any) extends Value {
   override def toString = value match {

@@ -113,15 +113,20 @@ class TestEvaluate extends FunSuite {
       case q"object $name extends $template" =>
         val template"{ ..$_} with ..$_ { $_ => ..$stats1 }" = template
 
-        val completeEnv: Environment = stats1.foldLeft(internalEnv) {
-          case (tEnv, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}") =>
+        val (completeEnv, main) = stats1.foldLeft[(Environment, Option[Term.Name])]((internalEnv, None)) {
+          case ((tEnv, mainName), q"..$mods def $main(..$params): Unit = ${expr: Term}") if main.toString == "main" =>
+          val argsName: Term.Name = params match {
+            case Seq(param) => param.name match {
+              case name: Term.Name => name
+            }
+          }
             val args: Literal = tEnv.get.getOrElse(Local(argsName), Literal(Array[String]())).asInstanceOf[Literal]
-            tEnv + (MainFun, Main(Literal(args), expr)) + (Local(argsName), args)
-          case (tEnv, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
-            tEnv + (Local(name), Function(name, params, expr))
+            (tEnv + (Local(main), Function(main, params, expr)) + (Local(argsName), args), Some(main))
+          case ((tEnv, mainName), q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
+            (tEnv + (Local(name), Function(name, params, expr)), mainName)
         }
 
-        val Main(arguments, term) = completeEnv(MainFun)
+        val Function(_, arguments, term) = completeEnv(Local(main.get))
         evaluate(term, completeEnv)(ctx)
         Literal(())
 
