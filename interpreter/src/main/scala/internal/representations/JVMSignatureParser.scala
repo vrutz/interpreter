@@ -21,20 +21,20 @@ object JVMSignatureParser extends RegexParsers {
   def array: Parser[Class[_]]     = "[" ~> primType ^^ { t: Class[_] => arrayClass(t) }
   def tpe: Parser[Class[_]]       = (primType | array)
   def signature: Parser[JVMSignature]  = "(" ~> rep(tpe) <~ ")" ~> tpe ^^ { 
-    case Nil => JVMSignature(Array())
-    case sig: List[Class[_]] => JVMSignature(sig.toArray)
+    case Nil => JVMSignature(List())
+    case sig: List[Class[_]] => JVMSignature(sig)
   }
 }
 
-final case class JVMSignature(arguments: Array[Class[_ <: Any]]) {
+final case class JVMSignature(arguments: List[Class[_ <: Any]]) {
   override def toString: String = "[" + arguments.mkString(", ") + "]"
 
-  override def equals(other: Any): Boolean = other match {
-    case JVMSignature(otherArgs: Array[Class[_]]) if arguments.isEmpty && otherArgs.isEmpty => true
-    case JVMSignature(otherArgs: Array[Class[_]]) if arguments.size == otherArgs.size =>
-      otherArgs.zip(arguments).forall {
-        case (c0: Class[_], c1: Class[_]) => c0.getName == c1.getName
-      }
-    case _ => false
-  }
+  // override def equals(other: Any): Boolean = other match {
+  //   case JVMSignature(otherArgs: List[Class[_]]) if arguments.isEmpty && otherArgs.isEmpty => true
+  //   case JVMSignature(otherArgs: List[Class[_]]) if arguments.size == otherArgs.size =>
+  //     otherArgs.zip(arguments).forall {
+  //       case (c0: Class[_], c1: Class[_]) => c0.getName == c1.getName
+  //     }
+  //   case _ => false
+  // }
 }

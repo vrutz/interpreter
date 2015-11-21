@@ -50,38 +50,38 @@ class TestSignatureParser extends FunSuite with Matchers {
     }
 
     test("empty signature") {
-      parsing("()V") should equal (JVMSignature(Array()))
+      parsing("()V") should equal (JVMSignature(List()))
     }
 
     test("primitive signature") {
-      parsing("(I)V") should equal (JVMSignature(Array[Class[_]](int)))
+      parsing("(I)V") should equal (JVMSignature(List[Class[_]](int)))
     }
 
     test("multiple primitive signature") {
-      parsing("(IJZD)V") should equal (JVMSignature(Array[Class[_]](int, long, bool, double)))
+      parsing("(IJZD)V") should equal (JVMSignature(List[Class[_]](int, long, bool, double)))
     }
 
     test("reference signature") {
-      parsing("(Ljava/lang/Object;)I") should equal (JVMSignature(Array[Class[_]](objct)))
+      parsing("(Ljava/lang/Object;)I") should equal (JVMSignature(List[Class[_]](objct)))
     }
 
     test("multiple reference signature") {
-      parsing("(Ljava/lang/Object;Ljava/lang/String;)I") should equal (JVMSignature(Array[Class[_]](objct, strng)))
+      parsing("(Ljava/lang/Object;Ljava/lang/String;)I") should equal (JVMSignature(List[Class[_]](objct, strng)))
     }
 
     test("array signature") {
-      parsing("([I)Z") should equal (JVMSignature(Array[Class[_]]("[I")))
+      parsing("([I)Z") should equal (JVMSignature(List[Class[_]]("[I")))
     }
 
     test("array return type") {
-      parsing("()[D") should equal (JVMSignature(Array[Class[_]]()))
+      parsing("()[D") should equal (JVMSignature(List[Class[_]]()))
     }
 
     test("multiple array signature") {
-      parsing("([I[Z[Ljava/lang/String;)Ljava/lang/String;") should equal (JVMSignature(Array[Class[_]](arrayClass(int), arrayClass(bool), arrayClass(strng))))
+      parsing("([I[Z[Ljava/lang/String;)Ljava/lang/String;") should equal (JVMSignature(List[Class[_]](arrayClass(int), arrayClass(bool), arrayClass(strng))))
     }
 
     test("all mixed up") {
-      parsing("([ILscala/Predef$;JZ[Ljava/util/List;)Ljava/lang/Object;") should equal (JVMSignature(Array[Class[_]](arrayClass(int), "scala.Predef$", long, bool, arrayClass("java.util.List"))))
+      parsing("([ILscala/Predef$;JZ[Ljava/util/List;)Ljava/lang/Object;") should equal (JVMSignature(List[Class[_]](arrayClass(int), "scala.Predef$", long, bool, arrayClass("java.util.List"))))
     }
 }

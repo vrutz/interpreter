@@ -135,7 +135,7 @@ object Interpreter {
 
             // Get class, and the right method
             val c: Class[_] = Class.forName(jvmToFullName(className))
-            val argsType: Array[Class[_ <: Any]] = parsing(signature).arguments
+            val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
             val method = c.getMethod(fieldName, argsType: _*)
             val module = c.getField("MODULE$").get(c)
 
