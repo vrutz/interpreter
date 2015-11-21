@@ -8,15 +8,15 @@ import scala.runtime.ScalaRunTime._
 
 object JVMSig extends RegexParsers {
   def id        = "[A-Za-z_$/]+".r ^^ { i => i }
-  def void: Parser[Class[_]]      = "V".r ^^^ { ().getClass }
-  def bool: Parser[Class[_]]      = "Z".r ^^^ { false.getClass }
-  def char: Parser[Class[_]]      = "C".r ^^^ { 'a'.getClass }
-  def byte: Parser[Class[_]]      = "B".r ^^^ { val x: Byte = 2; x.getClass }
-  def short: Parser[Class[_]]     = "S".r ^^^ { val x: Short = 2; x.getClass }
-  def int: Parser[Class[_]]       = "I".r ^^^ { 2.getClass }
-  def long: Parser[Class[_]]      = "J".r ^^^ { val x: Long = 2; x.getClass }
-  def float: Parser[Class[_]]     = "F".r ^^^ { 2.0f.getClass }
-  def double: Parser[Class[_]]    = "D".r ^^^ { 2.0.getClass }
+  def void: Parser[Class[_]]      = "V".r ^^^ { classOf[Void] }
+  def bool: Parser[Class[_]]      = "Z".r ^^^ { classOf[Boolean] }
+  def char: Parser[Class[_]]      = "C".r ^^^ { classOf[Char] }
+  def byte: Parser[Class[_]]      = "B".r ^^^ { classOf[Byte] }
+  def short: Parser[Class[_]]     = "S".r ^^^ { classOf[Short] }
+  def int: Parser[Class[_]]       = "I".r ^^^ { classOf[Int] }
+  def long: Parser[Class[_]]      = "J".r ^^^ { classOf[Long] }
+  def float: Parser[Class[_]]     = "F".r ^^^ { classOf[Float] }
+  def double: Parser[Class[_]]    = "D".r ^^^ { classOf[Double] }
   def reference: Parser[Class[_]] = "L" ~> id <~ ";" ^^ { t => Class.forName(t.replace('/', '.')) } 
   def primType: Parser[Class[_]]  = void | bool | char | byte | short | int | long | float | double | reference
   def array: Parser[Class[_]]     = "[" ~> primType ^^ { t: Class[_] => arrayClass(t) }
