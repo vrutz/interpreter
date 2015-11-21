@@ -4,8 +4,10 @@ import org.scalatest.FunSuite
 
 import tql._
 import interpreter._
+import internal.interpreter._
+import internal.interpreter.Interpreter._
 
-import internal.representations.{Literal, MainArgs}
+import internal.representations._
 
 /**
  * Created by rutz on 06/10/15.
@@ -33,7 +35,8 @@ class TestEvaluate extends FunSuite {
             |    args update (0, "Hello")
             |    val y = x * x
             |    println(y)
-            |    println(args(0) + x)
+            |    println(args.length)
+            |    println(args.apply(0) + x)
             |  }
             |}
         """.stripMargin.parse[Stat]
@@ -97,4 +100,32 @@ class TestEvaluate extends FunSuite {
         """.stripMargin.parse[Stat])
   }
   */
+
+  def evalMain(stat0: Stat, env: EnvImpl = Env())(implicit ctx: Context): Value = {
+    val stat = ctx.typecheck(stat0).asInstanceOf[Stat]
+    val internalEnv = Environment(env, stat)(ctx)
+    // println(internalEnv)
+
+    stat match {
+      // Stat can be either a block (multiple statements like class/object def and imports etc...)
+      // Or it is an object containing the main function
+
+      case q"object $name extends $template" =>
+        val template"{ ..$_} with ..$_ { $_ => ..$stats1 }" = template
+
+        val completeEnv: Environment = stats1.foldLeft(internalEnv) {
+          case (tEnv, q"..$mods def main(${argsName: Term.Name}: Array[String]): Unit = ${expr: Term}") =>
+            val args: Literal = tEnv.get.getOrElse(Local(argsName), Literal(Array[String]())).asInstanceOf[Literal]
+            tEnv + (MainFun, Main(Literal(args), expr)) + (Local(argsName), args)
+          case (tEnv, q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
+            tEnv + (Local(name), Function(name, params, expr))
+        }
+
+        val Main(arguments, term) = completeEnv(MainFun)
+        evaluate(term, completeEnv)(ctx)
+        Literal(())
+
+      case t: Term => evaluate(ctx.typecheck(t).asInstanceOf[Term].desugar(ctx), internalEnv)(ctx)._1
+    }
+  }
 }

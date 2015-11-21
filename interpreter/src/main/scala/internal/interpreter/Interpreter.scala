@@ -51,11 +51,11 @@ object Interpreter {
       case q"super" => (env(Super), env)
       case q"super[$_]" => (env(Super), env)
 
-      case name: Term.Name => {println(env);env(Local(name)) match {
-         case l @ Literal(value) => (l, env)
+      case name: Term.Name => env(Local(name)) match {
+         case l @ Literal(_) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
-         case f @ Function(name, args, expr) => ???
-        }}
+         case f @ Function(name, args, expr) => (f, env)
+        }
 
     // Selection <expr>.<name>
     // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
@@ -64,6 +64,7 @@ object Interpreter {
         (name.defn, evalExpr) match {
           // All intrinsic operations on arrays such as length, apply ...
           case (_, Literal(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
+            // println(Literal(jvmInstance))
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
 
           // All intrinsic operations such as toChar, toInt, ...
@@ -109,6 +110,9 @@ object Interpreter {
           // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
             // Evaluate caller
+            // println(s"Caller $name\nClassName: $className\nMethod: $methodName")
+            // println(s"Env is $env")
+            // println(s"Args in env: ${env(Local(name))}")
             val (Literal(callerJVM), callerEnv) = evaluate(name, env)
 
             // Evaluate arguments

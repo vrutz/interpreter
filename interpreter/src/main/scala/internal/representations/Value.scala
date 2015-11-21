@@ -25,7 +25,7 @@ final case class Literal(value: Any) extends Value {
     case null => "null"
     case c: Char => s"\'$c\'"
     case s: Predef.String => "\"" + s + "\""
-    case a: Array[_] => s"""Array[${a.mkString(", ")}]"""
+    case a: Array[_] => s"""Array[${a.map(Literal(_).toString).mkString(", ")}]"""
     case v => v.toString
   }
 }

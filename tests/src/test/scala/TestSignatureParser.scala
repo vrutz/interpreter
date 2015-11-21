@@ -15,7 +15,7 @@ import scala.runtime.ScalaRunTime._
  */
 class TestSignatureParser extends FunSuite with Matchers {
 
-  private def parsing[T](s:String)(implicit p:Parser[T]):T = {
+  private def parsing[T](s:String)(implicit p: Parser[T]):T = {
     // Wrap the parser in the phrase parse to make sure all input is consumed
     val phraseParser = phrase(p)
     // We need to wrap the string in a reader so our parser can digest it
