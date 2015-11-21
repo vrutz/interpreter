@@ -5,7 +5,7 @@ package representations
 import scala.util.parsing.combinator._
 import scala.runtime.ScalaRunTime._
 
-object JVMSignatureParser extends RegexParsers {
+object JVMSig extends RegexParsers {
   def id        = "[A-Za-z_$/]+".r ^^ { i => i }
   def void: Parser[Class[_]]      = "V".r ^^^ { ().getClass }
   def bool: Parser[Class[_]]      = "Z".r ^^^ { false.getClass }
@@ -20,18 +20,18 @@ object JVMSignatureParser extends RegexParsers {
   def primType: Parser[Class[_]]  = void | bool | char | byte | short | int | long | float | double | reference
   def array: Parser[Class[_]]     = "[" ~> primType ^^ { t: Class[_] => arrayClass(t) }
   def tpe: Parser[Class[_]]       = (primType | array)
-  def signature: Parser[JVMSignature]  = "(" ~> rep(tpe) <~ ")" ~> tpe ^^ { 
-    case Nil => JVMSignature(List())
-    case sig: List[Class[_]] => JVMSignature(sig)
+  def signature: Parser[JVMSig]  = "(" ~> rep(tpe) <~ ")" ~> tpe ^^ { 
+    case Nil => JVMSig(List())
+    case sig: List[Class[_]] => JVMSig(sig)
   }
 }
 
-final case class JVMSignature(arguments: List[Class[_ <: Any]]) {
+final case class JVMSig(arguments: List[Class[_ <: Any]]) {
   override def toString: String = "[" + arguments.mkString(", ") + "]"
 
   // override def equals(other: Any): Boolean = other match {
-  //   case JVMSignature(otherArgs: List[Class[_]]) if arguments.isEmpty && otherArgs.isEmpty => true
-  //   case JVMSignature(otherArgs: List[Class[_]]) if arguments.size == otherArgs.size =>
+  //   case JVMSig(otherArgs: List[Class[_]]) if arguments.isEmpty && otherArgs.isEmpty => true
+  //   case JVMSig(otherArgs: List[Class[_]]) if arguments.size == otherArgs.size =>
   //     otherArgs.zip(arguments).forall {
   //       case (c0: Class[_], c1: Class[_]) => c0.getName == c1.getName
   //     }

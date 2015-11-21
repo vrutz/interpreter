@@ -3,8 +3,8 @@ package internal
 package interpreter
 
 import scala.meta.internal.representations._
-import scala.meta.internal.representations.JVMSignature
-import scala.meta.internal.representations.JVMSignatureParser._
+import scala.meta.internal.representations.JVMSig
+import scala.meta.internal.representations.JVMSig._
 
 import scala.util.parsing.combinator._
 import scala.util.parsing.input.CharSequenceReader
