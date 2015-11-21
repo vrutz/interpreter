@@ -20,6 +20,8 @@ project/plugins/project/
 interpreter.iml
 
 # Macs...
+*/.DS_Store
 .DS_Store
+.DS_Store?
 .ensime_cache
 .ensime_session
