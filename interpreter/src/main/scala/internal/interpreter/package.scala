@@ -51,27 +51,18 @@ package object interpreter {
       case "<=" => brt.testLessOrEqualThan(op1, op2)
       case ">=" => brt.testGreaterOrEqualThan(op1, op2)
       case ">" => brt.testGreaterThan(op1, op2)
-      case "#" => ???
-      case ":" => ???
-      case "\\" => ???
-      case "?" => ???
-      case "@" => ???
   })
 
   def invokeObjectBinaryMethod(name:String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
     case "==" => srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
     case "!=" => !srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
     case "equals" => op1 equals op2
-    // case "eq" => op1 eq op2
-    // case "ne" => op1 ne op2
-    case _ => ???
   })
 
   def invokeObjectUnaryMethod(name:String)(op: Any): Literal = Literal(decode(name) match {
     case "hashCode" => op.hashCode
     case "toString" => op.toString
     case "##" => srt.hash(op)
-    case _ => ???
   })
 
   def invokeArrayMethod(name: String)(op: AnyRef, args: Any*): Literal = Literal(decode(name) match {
