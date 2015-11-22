@@ -136,23 +136,13 @@ object Interpreter {
             // Call the method
             (method.invoke(module, args: _*) match {
               case null => Literal(())
-              case _ => ???
+              case res => Literal(res)
             }, argsEnv)
 
           // User defined function
           case f.Zero =>
             // get the function from the environment
-            val Function(funName, args: Seq[Term.Param], code) = env(Local(name))
-            // Evaluate the arguments and add them to the environment
-            val (argsValues: Array[Value], evArgsEnv: Environment) = evaluateArguments(aexprs, env)
-
-            val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
-              case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) => 
-                paramname match {
-                  case nameParam: Term.Name => e + (Local(nameParam), av)
-                }
-            }
-            evaluate(code, argsEnv)
+            evaluateFunction(env(Local(name)).asInstanceOf[Function], aexprs, env)
         }
 
       case q"${expr: Term}[$_]" => evaluate(expr, env)
@@ -160,11 +150,7 @@ object Interpreter {
       // Infix application to one argument
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
         val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
-        val (arg: Literal, argEnv: Environment) = evaluate(expr1 match {
-          case arg"$name = $expr" => expr
-          case arg"$expr: _*" => expr
-          case expr: Term => expr
-        }, callerEnv)
+        val (arg: Literal, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
 
         name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
@@ -206,6 +192,11 @@ object Interpreter {
             }
         }
       case q"${expr: Term}(..$aexprs)" =>
+        val (evalExpr, evalEnv) = evaluate(expr, env)
+        evalExpr match {
+          // case Literal(l) => evaluate(q"$l apply (..$aexprs)")
+          case fun @ Function(name, params, code) => evaluateFunction(fun, aexprs, env)
+        }
         evaluate(q"$expr apply (..$aexprs)", env)
 
       case q"${ref: Term.Ref} = ${expr: Term}" =>
@@ -265,11 +256,7 @@ object Interpreter {
         println(ref)
         val justArgExprs = expr match {
           case q"$expr0(..$aexprs)" =>
-            aexprs map {
-              case arg"$name = $expr0" => expr0
-              case arg"$expr0: _*" => expr0
-              case arg"$expr0" => expr0
-            }
+            aexprs map extractExprFromArg
         }
         val justPats = apats map {
           case parg"$pat" => Seq(pat)
@@ -313,5 +300,28 @@ object Interpreter {
           newEnv
       }
       (argsBuffer.toArray, argEnv)
+  }
+
+  private def evaluateFunction(fun: Function, aexprs: Seq[Term.Arg], env: Environment)
+    (implicit ctx: Context) = {
+    // Evaluate the arguments and add them to the environment
+     val Function(funName, args: Seq[Term.Param], code) = fun
+    val (argsValues: Array[Value], evArgsEnv: Environment) = evaluateArguments(aexprs, env)
+
+    val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
+      case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) => 
+        paramname match {
+          case nameParam: Term.Name => e + (Local(nameParam), av)
+        }
+    }
+    evaluate(code, argsEnv)
+  }
+
+  private def extractExprFromArg(expr0: Term.Arg) = {
+    expr0 match {
+      case arg"$name = $expr" => expr
+      case arg"$expr: _*" => expr
+      case expr: Term => expr
+    }
   }
 }
