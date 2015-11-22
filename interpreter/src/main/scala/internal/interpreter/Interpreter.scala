@@ -73,10 +73,6 @@ object Interpreter {
             } else {
               (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
             }
-          case (_, Literal(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
-            val f.Intrinsic(className, methodName, signature) = getFFI(name)
-            (invokeObjectUnaryMethod(methodName)(jvmInstance), envExpr)
-
 
           // The real work
           case (q"this", e: Literal) => ???
@@ -211,20 +207,6 @@ object Interpreter {
         }
       case q"${expr: Term}(..$aexprs)" =>
         evaluate(q"$expr apply (..$aexprs)", env)
-
-      // Unary application: !<expr> | ~<expr> | +<expr> | -<expr>
-      case q"!${expr: Term}" =>
-        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
-        (invokePrimitiveUnaryMethod("$bang")(evaluatedExpr.value), exprEnv)
-      case q"~${expr: Term}" =>
-        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
-        (invokePrimitiveUnaryMethod("$tilde")(evaluatedExpr.value), exprEnv)
-      case q"+${expr: Term}" =>
-        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
-        (invokePrimitiveUnaryMethod("$plus")(evaluatedExpr.value), exprEnv)
-      case q"-${expr: Term}" =>
-        val (evaluatedExpr: Literal, exprEnv) = evaluate(expr, env)
-        (invokePrimitiveUnaryMethod("$minus")(evaluatedExpr.value), exprEnv)
 
       case q"${ref: Term.Ref} = ${expr: Term}" =>
         val (evaluatedRef, refEnv) = evaluate(ref, env)
