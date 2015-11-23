@@ -78,16 +78,16 @@ object Interpreter {
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
         // If name is a class, then use reflection to create the object
-      case q"${name: Term.Name}[$_]()" if name.isClass =>
+      case q"${name: Ctor.Name}[$_]()" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
         (Literal(c.newInstance), env)
-      case q"${name: Term.Name}()" if name.isClass =>
+      case q"${name: Ctor.Name}()" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
         (Literal(c.newInstance), env)
 
-      case q"${name: Term.Name}(..$aexprs)" if name.isClass =>
+      case q"${name: Ctor.Name}(..$aexprs)" if name.isClass =>
         val c: Class[_] = Class.forName(name.toString)
-        // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping.get.))
+        // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping)).toArray
         // val ctor = c.getDeclaredConstructor(types)
         ???
 
