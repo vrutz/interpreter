@@ -18,14 +18,6 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  // private def evaluate(terms: Seq[Term], env: Environment)(implicit ctx: Context): (Seq[Value], Environment) = {
-  //   terms.foldRight(List[Value](), env) {
-  //     case (expr, (evaluatedExprs, newEnv)) =>
-  //       val (newEvaluatedExpr, envToKeep) = evaluate(expr, newEnv)
-  //       (evaluatedExprs ::: List(newEvaluatedExpr), envToKeep)
-  //   }
-  // }
-
   private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
@@ -192,12 +184,8 @@ object Interpreter {
             }
         }
       case q"${expr: Term}(..$aexprs)" =>
-        val (evalExpr, evalEnv) = evaluate(expr, env)
-        evalExpr match {
-          // case Literal(l) => evaluate(q"$l apply (..$aexprs)")
-          case fun @ Function(name, params, code) => evaluateFunction(fun, aexprs, env)
-        }
-        evaluate(q"$expr apply (..$aexprs)", env)
+        val (fun @ Function(name, params, code), evalEnv) = evaluate(expr, env)
+        evaluateFunction(fun, aexprs, evalEnv)
 
       case q"${ref: Term.Ref} = ${expr: Term}" =>
         val (evaluatedRef, refEnv) = evaluate(ref, env)
@@ -270,14 +258,6 @@ object Interpreter {
     }
   }
 
-  private def find(toFind: String)(tree: Tree): Unit = tree.topDownBreak.collect {
-    case t@q"$expr.$name" if (name: Term.Name).toString == toFind =>
-      println(s"Found one $toFind in expression: $t")
-      find(toFind)(expr)
-    case t: Term.Name if t.toString == toFind =>
-      println(s"Found one $toFind in expression: $t")
-  }
-
   private def jvmToFullName(jvmName: String): String = jvmName.substring(1, jvmName.length - 1).replace('/', '.')
 
   private def getFFI(name: Term.Name)(implicit ctx: Context) = name.defn.asInstanceOf[m.Member].ffi
@@ -285,15 +265,7 @@ object Interpreter {
   private def evaluateArguments(args: Seq[Term.Arg], env: Environment)
     (implicit ctx: Context): (Array[Value], Environment) = {
     val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
-      val argEnv: Environment = args.foldLeft(env) {
-        case (e, arg"$name = $expr") => 
-          val (newExpr: Value, newEnv) = evaluate(expr, e)
-          argsBuffer += newExpr
-          newEnv
-        case (e, arg"$expr: _*") => 
-          val (newExpr: Value, newEnv) = evaluate(expr, e)
-          argsBuffer += newExpr
-          newEnv
+      val argEnv: Environment = args.map(extractExprFromArg).foldLeft(env) {
         case (e, expr: Term) => 
           val (newExpr: Value, newEnv) = evaluate(expr, e)
           argsBuffer += newExpr
