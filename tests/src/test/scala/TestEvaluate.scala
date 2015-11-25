@@ -73,6 +73,12 @@ class TestEvaluate extends FunSuite {
         |}
         """.stripMargin.parse[Stat])
   }
+
+  test("Creating a List") {
+    eval("""{
+      |val x = Array(2)
+      |}""".stripMargin.parse[Term])
+  }
 /*
   test("patterns in declarations") {
     eval("""

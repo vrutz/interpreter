@@ -31,7 +31,7 @@ object Interpreter {
       evaluate(cond, env) match {
         case (Literal(true), e) => evaluate(thn, e)
         case (Literal(false), e) => evaluate(els, e)
-        case (_, e) => ???
+        case (_, e) => (null, e) // Evaluation exception
       }
 
       // this
@@ -66,30 +66,36 @@ object Interpreter {
               (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
             }
 
-          // The real work
-          case (q"this", e: Literal) => ???
+          case (q"this", e: Literal) => (evalExpr, envExpr)
           // Use reflection to get fields etc...
-          // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) => (e.fields(Local(name)), envExpr)
+          // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) =>
           // case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
 
-          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => ???
-          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => ???
+          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => 
+            val e = envExpr push envExpr.get
+            val (res, resEnv) = evaluate(q"$expr", e + (This, evalExpr))
+            (res, resEnv.pop._2)
+          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => 
+            val e = envExpr push envExpr.get
+            val (res, resEnv) = evaluate(q"$expr", e + (This, evalExpr))
+            (res, resEnv.pop._2)
         }
       // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
         // Same as infix but with method apply
         // If name is a class, then use reflection to create the object
-      case q"${name: Ctor.Name}[$_]()" if name.isClass =>
+      case q"${name: Ctor.Name}[$_]()" =>
         val c: Class[_] = Class.forName(name.toString)
         (Literal(c.newInstance), env)
-      case q"${name: Ctor.Name}()" if name.isClass =>
+      case q"${name: Ctor.Name}()" =>
         val c: Class[_] = Class.forName(name.toString)
         (Literal(c.newInstance), env)
 
-      case q"${name: Ctor.Name}(..$aexprs)" if name.isClass =>
+      case q"${name: Ctor.Name}(..$aexprs)" =>
         val c: Class[_] = Class.forName(name.toString)
-        // val types: Array[Class[_]] = aexprs.map(aexpr => Class.forName(aexpr.internalTyping)).toArray
-        // val ctor = c.getDeclaredConstructor(types)
-        ???
+        val (args, argsEnv) = evaluateArguments(aexprs, env)
+        val argsTypes = args.map { case Literal(l) => l.getClass }.toArray
+        val ctor = c.getDeclaredConstructor(argsTypes: _*)
+        (ctor.newInstance(args.map { case Literal(l) => l }), argsEnv)
 
       case q"${name: Term.Name}(..$aexprs)" =>
         getFFI(name) match {
@@ -229,7 +235,9 @@ object Interpreter {
       // TODO Top level are Pat.Var.Term and not top level are Term.Name
       // TODO Think of the val X = 2; val Y = 3; val (X, Y) = (2, 4) example
 
-      case name: Term.Name => ???
+      case (newEnv, name: Term.Name) =>
+        val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
+          exprEnv + (Local(name), evaluatedExpr)
       case (newEnv, m: Pat.Var.Term) =>
         val (evaluatedExpr: Value, exprEnv) = evaluate(expr, env)
         exprEnv + (Local(m.name), evaluatedExpr)
