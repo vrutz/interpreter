@@ -95,7 +95,7 @@ object Interpreter {
         val (args, argsEnv) = evaluateArguments(aexprs, env)
         val argsTypes = args.map { case Literal(l) => l.getClass }.toArray
         val ctor = c.getDeclaredConstructor(argsTypes: _*)
-        (ctor.newInstance(args.map { case Literal(l) => l }), argsEnv)
+        (Literal(ctor.newInstance(args.map { case Literal(l) => l })), argsEnv)
 
       case q"${name: Term.Name}(..$aexprs)" =>
         getFFI(name) match {
