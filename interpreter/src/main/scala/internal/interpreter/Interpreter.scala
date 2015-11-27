@@ -66,10 +66,19 @@ object Interpreter {
               (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
             }
 
-          case (q"this", e: Literal) => (evalExpr, envExpr)
+          case (q"this", e: Literal) => (e, envExpr)
+
           // Use reflection to get fields etc...
-          // case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", e: Instance) =>
-          // case (q"..$mods var ..$pats: $tpeopt = $expropt", e: Instance) if expropt.isDefined => (e.fields(Local(name)), envExpr)
+          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", Literal(instance)) =>
+            val c = instance.getClass
+            val field = c.getDeclaredField(pats.toString)
+            val value = Literal(field.get(instance).asInstanceOf[Any])
+            (value, envExpr)
+          case (q"..$mods var ..$pats: $tpeopt = $expropt", Literal(instance)) =>
+            val c = instance.getClass
+            val field = c.getDeclaredField(pats.toString)
+            val value = Literal(field.get(instance).asInstanceOf[Any])
+            (value, envExpr)
 
           case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => 
             val e = envExpr push envExpr.get

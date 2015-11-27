@@ -76,7 +76,7 @@ class TestEvaluate extends FunSuite {
 
   test("Creating a List") {
     eval("""{
-      |val x = Array(2)
+      |val x = List.apply(2)
       |}""".stripMargin.parse[Term])
   }
 /*
