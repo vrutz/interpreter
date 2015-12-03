@@ -22,7 +22,7 @@ class TestEvaluate extends FunSuite {
 
   test("literal") {
      assert(eval(q"""{ def x = 2; x }""") match {
-        case Literal(2) => true
+        case Val(2) => true
         case _ => false
      })
   }
@@ -43,7 +43,7 @@ class TestEvaluate extends FunSuite {
 
     val env = Env("args" -> Array[String]("test", "if", "it", "works", "for", "6"))
     assert(evalMain(stat, env) match {
-        case Literal(()) => true
+        case Val(()) => true
         case _ => false
     })
   }
@@ -126,7 +126,7 @@ class TestEvaluate extends FunSuite {
               case name: Term.Name => name
             }
           }
-            val args: Literal = tEnv.get.getOrElse(Local(argsName), Literal(Array[String]())).asInstanceOf[Literal]
+            val args: Val = tEnv.get.getOrElse(Local(argsName), Val(Array[String]())).asInstanceOf[Val]
             (tEnv + (Local(main), Function(main, params, expr)) + (Local(argsName), args), Some(main))
           case ((tEnv, mainName), q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
             (tEnv + (Local(name), Function(name, params, expr)), mainName)
@@ -134,7 +134,7 @@ class TestEvaluate extends FunSuite {
 
         val Function(_, arguments, term) = completeEnv(Local(main.get))
         evaluate(term, completeEnv)(ctx)
-        Literal(())
+        Val(())
 
       case t: Term => evaluate(ctx.typecheck(t).asInstanceOf[Term].desugar(ctx), internalEnv)(ctx)._1
     }

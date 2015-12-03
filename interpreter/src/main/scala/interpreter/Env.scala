@@ -14,7 +14,7 @@ trait Env {
 
 class EnvImpl(val slots: Map[String, Any] = Map[String, Any]()) extends Env {
   def this(e: Environment) = this(e.get.flatMap {
-      case (Local(name), Literal(l)) => List(name.toString -> l)
+      case (Local(name), Val(l)) => List(name.toString -> l)
       case _ => Nil
     }.toMap[String, Any])
   def +(name: String, value: Any): Env = new EnvImpl(slots + (name -> value))

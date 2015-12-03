@@ -13,7 +13,7 @@ package object interpreter {
   type Frame = Map[Slot, Value]
   type CallStack = List[Frame]
 
-  def invokePrimitiveUnaryMethod(name: String)(op: Any): Literal = Literal(decode(name) match {
+  def invokePrimitiveUnaryMethod(name: String)(op: Any): Val = Val(decode(name) match {
       case "+" => brt.positive(op)
       case "-" => brt.negate(op)
       case "~" => brt.complement(op)
@@ -27,7 +27,7 @@ package object interpreter {
       case "toDouble" => brt.toDouble(op)
     })
 
-  def invokePrimitiveBinaryMethod(name: String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
+  def invokePrimitiveBinaryMethod(name: String)(op1: Any, op2: Any): Val = Val(decode(name) match {
       case "+" => (op1, op2) match {
           case (s: String, _) => s + op2
           case (_, s: String) => op1 + s
@@ -53,19 +53,19 @@ package object interpreter {
       case ">" => brt.testGreaterThan(op1, op2)
   })
 
-  def invokeObjectBinaryMethod(name:String)(op1: Any, op2: Any): Literal = Literal(decode(name) match {
+  def invokeObjectBinaryMethod(name:String)(op1: Any, op2: Any): Val = Val(decode(name) match {
     case "==" => srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
     case "!=" => !srt.inlinedEquals(op1.asInstanceOf[AnyRef], op2.asInstanceOf[AnyRef])
     case "equals" => op1 equals op2
   })
 
-  def invokeObjectUnaryMethod(name:String)(op: Any): Literal = Literal(decode(name) match {
+  def invokeObjectUnaryMethod(name:String)(op: Any): Val = Val(decode(name) match {
     case "hashCode" => op.hashCode
     case "toString" => op.toString
     case "##" => srt.hash(op)
   })
 
-  def invokeArrayMethod(name: String)(op: AnyRef, args: Any*): Literal = Literal(decode(name) match {
+  def invokeArrayMethod(name: String)(op: AnyRef, args: Any*): Val = Val(decode(name) match {
     case "length" => srt.array_length(op)
     case "apply" => srt.array_apply(op, args(0).asInstanceOf[Int])
     case "update" => srt.array_update(op, args(0).asInstanceOf[Int], args(1))

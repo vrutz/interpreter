@@ -13,7 +13,7 @@ final class Environment(stack: CallStack) extends Env {
   def this() = this(List[Frame](Map[Slot, Value]()))
 
   // Inherited from interpreter.Env
-  def +(name: String, value: Any): Environment = ???//this + (Local(name), Literal(value))
+  def +(name: String, value: Any): Environment = ???//this + (Local(name), Val(value))
 
   // Usable only in Environment
   def apply(name: Slot): Value = stack.head(name)
@@ -32,7 +32,7 @@ object Environment {
        // Check if there is a definition for name in the Tree and if it is not already there as well
       case name: Term.Name if env.slots.isDefinedAt(name.toString) && !names.contains(name.toString) =>
         names += name.toString
-        Local(name) -> Literal(env(name.toString))
+        Local(name) -> Val(env(name.toString))
     }).toMap[Slot, Value]
     new Environment(List[Frame](toBuildEnvironment))
   }

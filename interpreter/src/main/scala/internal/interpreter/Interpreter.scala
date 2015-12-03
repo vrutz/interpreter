@@ -18,9 +18,9 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  private def evaluateLiteral(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+  private def evaluateVal(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
-      case x: Lit => (Literal(x.value), env)
+      case x: Lit => (Val(x.value), env)
     }
   }
 
@@ -28,8 +28,8 @@ object Interpreter {
     term match {
       case q"if ($cond) $thn else $els" =>
         evaluate(cond, env) match {
-          case (Literal(true), e) => evaluate(thn, e)
-          case (Literal(false), e) => evaluate(els, e)
+          case (Val(true), e) => evaluate(thn, e)
+          case (Val(false), e) => evaluate(els, e)
         }
     }
   }
@@ -44,13 +44,13 @@ object Interpreter {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
             nextExpr match {
               case q"..$mods def $name: $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
+                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
               case q"..$mods def $name(..$params): $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
+                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
               case q"..$mods val ..$pats: $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, link(pats, expr, exprEnv))
+                (Val(()) :: evaluatedExprs, link(pats, expr, exprEnv))
               case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined =>
-                (Literal(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
+                (Val(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
               case expr: Term =>
                 val (res, e) = evaluate(expr, exprEnv)
                 (List(res), e)
@@ -67,12 +67,12 @@ object Interpreter {
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
           // All intrinsic operations on arrays such as length, apply ...
-          case (_, Literal(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
-            // println(Literal(jvmInstance))
+          case (_, Val(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
+            // println(Val(jvmInstance))
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
 
           // All intrinsic operations such as toChar, toInt, ...
-          case (_, Literal(lit)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
+          case (_, Val(lit)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
             val f.Intrinsic(className, methodName, signature) = getFFI(name)
             if (className.head != 'L') {
               (invokePrimitiveUnaryMethod(methodName)(lit), envExpr)
@@ -80,18 +80,18 @@ object Interpreter {
               (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
             }
 
-          case (q"this", e: Literal) => (e, envExpr)
+          case (q"this", e: Val) => (e, envExpr)
 
           // Use reflection to get fields etc...
-          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", Literal(instance)) =>
+          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", Val(instance)) =>
             val c = instance.getClass
             val field = c.getDeclaredField(pats.toString)
-            val value = Literal(field.get(instance).asInstanceOf[Any])
+            val value = Val(field.get(instance).asInstanceOf[Any])
             (value, envExpr)
-          case (q"..$mods var ..$pats: $tpeopt = $expropt", Literal(instance)) =>
+          case (q"..$mods var ..$pats: $tpeopt = $expropt", Val(instance)) =>
             val c = instance.getClass
             val field = c.getDeclaredField(pats.toString)
-            val value = Literal(field.get(instance).asInstanceOf[Any])
+            val value = Val(field.get(instance).asInstanceOf[Any])
             (value, envExpr)
 
           case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => 
@@ -110,17 +110,17 @@ object Interpreter {
     term match {
       case q"${name: Ctor.Name}[$_]()" =>
         val c: Class[_] = Class.forName(name.toString)
-        (Literal(c.newInstance), env)
+        (Val(c.newInstance), env)
       case q"${name: Ctor.Name}()" =>
         val c: Class[_] = Class.forName(name.toString)
-        (Literal(c.newInstance), env)
+        (Val(c.newInstance), env)
 
       case q"${name: Ctor.Name}(..$aexprs)" =>
         val c: Class[_] = Class.forName(name.toString)
         val (args, argsEnv) = evaluateArguments(aexprs, env)
-        val argsTypes = args.map { case Literal(l) => l.getClass }.toArray
+        val argsTypes = args.map { case Val(l) => l.getClass }.toArray
         val ctor = c.getDeclaredConstructor(argsTypes: _*)
-        (Literal(ctor.newInstance(args.map { case Literal(l) => l })), argsEnv)
+        (Val(ctor.newInstance(args.map { case Val(l) => l })), argsEnv)
     }
   } 
 
@@ -134,7 +134,7 @@ object Interpreter {
             // println(s"Caller $name\nClassName: $className\nMethod: $methodName")
             // println(s"Env is $env")
             // println(s"Args in env: ${env(Local(name))}")
-            val (Literal(callerJVM), callerEnv) = evaluate(name, env)
+            val (Val(callerJVM), callerEnv) = evaluate(name, env)
 
             // Evaluate arguments
             val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
@@ -142,11 +142,11 @@ object Interpreter {
             // Call the right method given the type of the caller
             if (callerJVM.getClass.isArray)
               (invokeArrayMethod(methodName)(callerJVM.asInstanceOf[AnyRef], args map {
-                case Literal(l) => l
+                case Val(l) => l
               }: _*), callerEnv)
             else
               (invokeObjectBinaryMethod(methodName)(callerJVM, args(0) match {
-                case Literal(l) => l
+                case Val(l) => l
               }), callerEnv)
 
           // Compiled function
@@ -162,8 +162,8 @@ object Interpreter {
 
             // Call the method
             (method.invoke(module, args: _*) match {
-              case null => Literal(())
-              case res => Literal(res)
+              case null => Val(())
+              case res => Val(res)
             }, argsEnv)
 
           // User defined function
@@ -173,8 +173,8 @@ object Interpreter {
         }
 
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
-        val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
-        val (arg: Literal, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
+        val (caller: Val, callerEnv: Environment) = evaluate(expr0, env)
+        val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
 
         name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
@@ -201,12 +201,12 @@ object Interpreter {
               case f.Intrinsic(className: String, methodName: String, signature: String) =>
                 // If intrinsic, either an instance or an array
                 caller match {
-                  case Literal(array) if array.getClass.isArray =>
+                  case Val(array) if array.getClass.isArray =>
                     (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
-                      case Literal(l) => l
+                      case Val(l) => l
                     }: _*), argsEnv)
-                  case Literal(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
-                      case Literal(l) => l
+                  case Val(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
+                      case Val(l) => l
                     }), argsEnv)
                 }
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
@@ -228,15 +228,15 @@ object Interpreter {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
     val res = term match {
-      // Literals
-      case x: Lit => evaluateLiteral(x, env)
+      // Vals
+      case x: Lit => evaluateVal(x, env)
 
       // Ifs
       case q"if ($cond) $thn else $els" => evaluateIf(term, env)
 
       // Name
       case name: Term.Name => env(Local(name)) match {
-         case l @ Literal(_) => (l, env)
+         case l @ Val(_) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => (f, env)
         }
@@ -258,9 +258,11 @@ object Interpreter {
 
       // Patterns
       case q"$expr match { ..case $casesnel }" => evaluatePattern(term, env)
+
       case q"${expr: Term}[$_]" => evaluate(expr, env)
 
-      case t => (Literal(null), env)
+      // Safety Net
+      case t => (Val(null), env)
     }
     // println(s"$term evaluates to ${res._1}")
     res
