@@ -18,37 +18,51 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-    // println(s"to evaluate: $term")
-    // println(s"Env: $env")
-    val res = term match {
-      /* Literals */
+  private def evaluateLiteral(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
       case x: Lit => (Literal(x.value), env)
+    }
+  }
 
-      /* Expressions */
-      // if (<expr>) expr else <expr>
+  private def evaluateIf(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
       case q"if ($cond) $thn else $els" =>
-      evaluate(cond, env) match {
-        case (Literal(true), e) => evaluate(thn, e)
-        case (Literal(false), e) => evaluate(els, e)
-        case (_, e) => (null, e) // Evaluation exception
-      }
-
-      // this
-      case q"this" => (env(This), env)
-
-      //  super: super | super[<expr>]
-      case q"super" => (env(Super), env)
-      case q"super[$_]" => (env(Super), env)
-
-      case name: Term.Name => env(Local(name)) match {
-         case l @ Literal(_) => (l, env)
-         case f @ Function(name, Nil, expr) => evaluate(expr, env)
-         case f @ Function(name, args, expr) => (f, env)
+        evaluate(cond, env) match {
+          case (Literal(true), e) => evaluate(thn, e)
+          case (Literal(false), e) => evaluate(els, e)
         }
+    }
+  }
 
-    // Selection <expr>.<name>
-    // Will cover all $stg.this, $stg.super etc... AND jvm fields!!!
+  private def evaluateBlock(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
+      case q"{ ..$stats}" =>
+        val lastFrame: Frame = env.get
+        val blockEnv = env push lastFrame
+
+        val (l: List[Value], newEnv: Environment) = stats.foldLeft((List[Value](), blockEnv)) {
+          case ((evaluatedExprs, exprEnv), nextExpr) =>
+            nextExpr match {
+              case q"..$mods def $name: $tpeopt = $expr" =>
+                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
+              case q"..$mods def $name(..$params): $tpeopt = $expr" =>
+                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
+              case q"..$mods val ..$pats: $tpeopt = $expr" =>
+                (Literal(()) :: evaluatedExprs, link(pats, expr, exprEnv))
+              case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined =>
+                (Literal(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
+              case expr: Term =>
+                val (res, e) = evaluate(expr, exprEnv)
+                (List(res), e)
+            }
+        }
+        // newEnv.propagateChanges
+        (l.head, newEnv.pop._2)
+    }
+  }
+
+  private def evaluateSelection(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
       case q"${expr: Term}.${name: Term.Name}" =>
         val (evalExpr, envExpr) = evaluate(expr, env)
         (name.defn, evalExpr) match {
@@ -89,9 +103,11 @@ object Interpreter {
             val (res, resEnv) = evaluate(q"$expr", e + (This, evalExpr))
             (res, resEnv.pop._2)
         }
-      // Application <expr>(<aexprs>) == <expr>.apply(<aexprs)
-        // Same as infix but with method apply
-        // If name is a class, then use reflection to create the object
+    }
+  }
+
+  private def evaluateConstructor(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
       case q"${name: Ctor.Name}[$_]()" =>
         val c: Class[_] = Class.forName(name.toString)
         (Literal(c.newInstance), env)
@@ -105,7 +121,11 @@ object Interpreter {
         val argsTypes = args.map { case Literal(l) => l.getClass }.toArray
         val ctor = c.getDeclaredConstructor(argsTypes: _*)
         (Literal(ctor.newInstance(args.map { case Literal(l) => l })), argsEnv)
+    }
+  } 
 
+  private def evaluateApplication(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
       case q"${name: Term.Name}(..$aexprs)" =>
         getFFI(name) match {
           // Compiled function
@@ -152,9 +172,6 @@ object Interpreter {
             evaluateFunction(env(Local(name)).asInstanceOf[Function], aexprs, env)
         }
 
-      case q"${expr: Term}[$_]" => evaluate(expr, env)
-
-      // Infix application to one argument
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
         val (caller: Literal, callerEnv: Environment) = evaluate(expr0, env)
         val (arg: Literal, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
@@ -201,34 +218,47 @@ object Interpreter {
       case q"${expr: Term}(..$aexprs)" =>
         val (fun @ Function(name, params, code), evalEnv) = evaluate(expr, env)
         evaluateFunction(fun, aexprs, evalEnv)
+  }
+}
 
-      case q"${ref: Term.Ref} = ${expr: Term}" =>
-        val (evaluatedRef, refEnv) = evaluate(ref, env)
-        val (evaluatedExpr, exprEnv) = evaluate(expr, refEnv)
-        ???
+  private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = ???
+  private def evaluatePattern(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = ???
 
-      case q"{ ..$stats}" =>
-        val lastFrame: Frame = env.get
-        val blockEnv = env push lastFrame
+  private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
+    // println(s"to evaluate: $term")
+    // println(s"Env: $env")
+    val res = term match {
+      // Literals
+      case x: Lit => evaluateLiteral(x, env)
 
-        val (l: List[Value], newEnv: Environment) = stats.foldLeft((List[Value](), blockEnv)) {
-          case ((evaluatedExprs, exprEnv), nextExpr) =>
-            nextExpr match {
-              case q"..$mods def $name: $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
-              case q"..$mods def $name(..$params): $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
-              case q"..$mods val ..$pats: $tpeopt = $expr" =>
-                (Literal(()) :: evaluatedExprs, link(pats, expr, exprEnv))
-              case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined =>
-                (Literal(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
-              case expr: Term =>
-                val (res, e) = evaluate(expr, exprEnv)
-                (List(res), e)
-            }
+      // Ifs
+      case q"if ($cond) $thn else $els" => evaluateIf(term, env)
+
+      // Name
+      case name: Term.Name => env(Local(name)) match {
+         case l @ Literal(_) => (l, env)
+         case f @ Function(name, Nil, expr) => evaluate(expr, env)
+         case f @ Function(name, args, expr) => (f, env)
         }
-        // newEnv.propagateChanges
-        (l.head, newEnv.pop._2)
+
+      // Selection
+      case q"${expr0: Term}.${expr1: Term}" => evaluateSelection(term, env)
+
+      // Contructors
+      case q"${name: Ctor.Name}[..$_](..$aexprs)" => evaluateConstructor(term, env)
+
+      // Application
+      case q"${expr : Term}(..$aexprs)" => evaluateApplication(term, env)
+
+      // Block
+      case q"{ ..$stats}" => evaluateBlock(term, env)
+
+      // Lambda
+      case q"(..${args: Seq[Term.Param]}) => $expr" => evaluateLambda(term, env)
+
+      // Patterns
+      case q"$expr match { ..case $casesnel }" => evaluatePattern(term, env)
+      case q"${expr: Term}[$_]" => evaluate(expr, env)
 
       case t => (Literal(null), env)
     }
