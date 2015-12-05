@@ -18,7 +18,7 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  private def evaluateVal(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+  private def evaluateLiteral(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
       case x: Lit => (Val(x.value), env)
     }
@@ -26,10 +26,12 @@ object Interpreter {
 
   private def evaluateIf(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
-      case q"if ($cond) $thn else $els" =>
-        evaluate(cond, env) match {
-          case (Val(true), e) => evaluate(thn, e)
-          case (Val(false), e) => evaluate(els, e)
+      case q"if ($cond) ${thn: Term} else ${els: Term}" =>
+        val (Val(condVal: Boolean), e) = evaluate(cond, env)
+        if(condVal) {
+          evaluate(thn, e)
+        } else {
+          evaluate(els, e)
         }
     }
   }
@@ -228,8 +230,8 @@ object Interpreter {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
     val res = term match {
-      // Vals
-      case x: Lit => evaluateVal(x, env)
+      // Literal
+      case x: Lit => evaluateLiteral(x, env)
 
       // Ifs
       case q"if ($cond) $thn else $els" => evaluateIf(term, env)
@@ -257,12 +259,12 @@ object Interpreter {
       case q"(..${args: Seq[Term.Param]}) => $expr" => evaluateLambda(term, env)
 
       // Patterns
-      case q"$expr match { ..case $casesnel }" => evaluatePattern(term, env)
+      case q"${expr: Term} match { ..case $casesnel }" => evaluatePattern(term, env)
 
       case q"${expr: Term}[$_]" => evaluate(expr, env)
 
       // Safety Net
-      case t => (Val(null), env)
+      case _ => (Val(null), env)
     }
     // println(s"$term evaluates to ${res._1}")
     res

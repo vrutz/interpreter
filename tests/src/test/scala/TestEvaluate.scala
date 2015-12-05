@@ -79,6 +79,48 @@ class TestEvaluate extends FunSuite {
       |val x = List.apply(2)
       |}""".stripMargin.parse[Term])
   }
+
+  test("literal int") {
+    assert(eval(q"1") match {
+      case Val(x) if x.isInstanceOf[Int] && x == 1 => true
+      case _ => false
+    })
+  }
+
+  test("literal double") {
+    assert(eval(q"1.0") match {
+      case Val(x) if x.isInstanceOf[Double] && x == 1.0 => true
+      case _ => false
+    })
+  }
+
+  test("literal char") {
+    assert(eval("\'c\'".parse[Term]) match {
+      case Val(x) if x.isInstanceOf[Char] && x == 'c' => true
+      case _ => false
+    })
+  }
+
+  test("literal string") {
+    assert(eval("\"hello\"".parse[Term]) match {
+      case Val(x) if x.isInstanceOf[Predef.String] && x == "hello" => true
+      case _ => false
+    })
+  }
+
+  test("if true") {
+    assert(eval(q"if (true) { 1 } else { 0 }") match {
+      case Val(1) => true
+      case _ => false
+    })
+  }
+
+  test("if false") {
+    assert(eval(q"if (false) { 1 } else { 0 }") match {
+      case Val(0) => true
+      case _ => false
+    })
+  }
 /*
   test("patterns in declarations") {
     eval("""
