@@ -18,13 +18,11 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  private def evaluateLiteral(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
-    term match {
-      case x: Lit => (Val(x.value), env)
-    }
+  private def evaluateLiteral(term: Lit, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    (Val(term.value), env)
   }
 
-  private def evaluateIf(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+  private def evaluateIf(term: m.Term.If, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
       case q"if ($cond) ${thn: Term} else ${els: Term}" =>
         val (Val(condVal: Boolean), e) = evaluate(cond, env)
@@ -36,7 +34,7 @@ object Interpreter {
     }
   }
 
-  private def evaluateBlock(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+  private def evaluateBlock(term: m.Term.Block, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
       case q"{ ..$stats}" =>
         val lastFrame: Frame = env.get
@@ -55,7 +53,7 @@ object Interpreter {
                 (Val(()) :: evaluatedExprs, link(pats, expropt.get, exprEnv))
               case expr: Term =>
                 val (res, e) = evaluate(expr, exprEnv)
-                (List(res), e)
+                (res :: evaluatedExprs, e)
             }
         }
         // newEnv.propagateChanges
@@ -127,6 +125,7 @@ object Interpreter {
   } 
 
   private def evaluateApplication(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    require(term.isInstanceOf[m.Term.Apply] || term.isInstanceOf[m.Term.ApplyInfix] || term.isInstanceOf[m.Term.ApplyUnary])
     term match {
       case q"${name: Term.Name}(..$aexprs)" =>
         getFFI(name) match {
@@ -142,14 +141,15 @@ object Interpreter {
             val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
 
             // Call the right method given the type of the caller
-            if (callerJVM.getClass.isArray)
+            if (callerJVM.getClass.isArray) {
               (invokeArrayMethod(methodName)(callerJVM.asInstanceOf[AnyRef], args map {
                 case Val(l) => l
               }: _*), callerEnv)
-            else
+            } else {
               (invokeObjectBinaryMethod(methodName)(callerJVM, args(0) match {
                 case Val(l) => l
               }), callerEnv)
+            }
 
           // Compiled function
           case f.JvmMethod(className: String, fieldName: String, signature: String) =>
@@ -159,11 +159,14 @@ object Interpreter {
             // Get class, and the right method
             val c: Class[_] = Class.forName(jvmToFullName(className))
             val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
+
+            val typeCompliantArgs = checkArgs(args, argsType).asInstanceOf[Array[Object]]
+
             val method = c.getMethod(fieldName, argsType: _*)
             val module = c.getField("MODULE$").get(c)
 
             // Call the method
-            (method.invoke(module, args: _*) match {
+            (method.invoke(module, typeCompliantArgs: _*) match {
               case null => Val(())
               case res => Val(res)
             }, argsEnv)
@@ -177,12 +180,18 @@ object Interpreter {
       case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
         val (caller: Val, callerEnv: Environment) = evaluate(expr0, env)
         val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
-
         name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
             getFFI(name) match {
               case f.Intrinsic(className: String, methodName: String, signature: String) =>
-                (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
+              // println(s"Trying to call $methodName from $className on $caller with $arg")
+                if (caller.value.getClass.isArray) {
+                  (invokeArrayMethod(name.toString)(caller.value.asInstanceOf[AnyRef], arg.value), callerEnv)
+                } else if(className.head != 'L' || className == "Ljava/lang/String;"){
+                  (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
+                } else {
+                  (invokeObjectBinaryMethod(methodName)(caller.value, arg.value), argEnv)
+                }
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
               case f.Zero =>
@@ -207,9 +216,16 @@ object Interpreter {
                     (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
                       case Val(l) => l
                     }: _*), argsEnv)
-                  case Val(o) => (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
-                      case Val(l) => l
-                    }), argsEnv)
+                  case Val(o) => 
+                    if(className.head == 'L') {
+                      (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
+                        case Val(l) => l
+                      }), argsEnv)
+                    } else {
+                      (invokePrimitiveBinaryMethod(name.toString)(o, args(0) match {
+                        case Val(v) => v
+                      }), argsEnv)
+                    }
                 }
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
@@ -229,12 +245,13 @@ object Interpreter {
   private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
+    // println(term)
     val res = term match {
       // Literal
       case x: Lit => evaluateLiteral(x, env)
 
       // Ifs
-      case q"if ($cond) $thn else $els" => evaluateIf(term, env)
+      case t: m.Term.If => evaluateIf(t, env)
 
       // Name
       case name: Term.Name => env(Local(name)) match {
@@ -243,17 +260,19 @@ object Interpreter {
          case f @ Function(name, args, expr) => (f, env)
         }
 
-      // Selection
-      case q"${expr0: Term}.${expr1: Term}" => evaluateSelection(term, env)
-
       // Contructors
       case q"${name: Ctor.Name}[..$_](..$aexprs)" => evaluateConstructor(term, env)
 
       // Application
-      case q"${expr : Term}(..$aexprs)" => evaluateApplication(term, env)
+      case t: m.Term.Apply => evaluateApplication(t, env)
+      case t: m.Term.ApplyInfix => evaluateApplication(t, env)
+      case t: m.Term.ApplyUnary => evaluateApplication(t, env)
+
+      // Selection
+      case q"${expr0: Term}.${expr1: Term}" => evaluateSelection(term, env)
 
       // Block
-      case q"{ ..$stats}" => evaluateBlock(term, env)
+      case t: m.Term.Block => evaluateBlock(t, env)
 
       // Lambda
       case q"(..${args: Seq[Term.Param]}) => $expr" => evaluateLambda(term, env)
@@ -338,6 +357,37 @@ object Interpreter {
         }
     }
     evaluate(code, argsEnv)
+  }
+
+  private def extractArgs(args: Array[Value]) = args map {
+      case Val(v) => v
+    }
+
+  private def checkArgs(args: Array[Value], argsType: List[Class[_ <: Any]]): Array[Any] = {
+    require(args.length >= argsType.size)
+    if (args.length == argsType.size) {
+      if (argsType.last.isAssignableFrom(extractArgs(args)(args.length - 1).getClass)) {
+        extractArgs(args)
+      } else {
+        args.update(args.length - 1, args(args.length - 1) match {
+            case Val(v) => Val(Seq(v))
+          })
+        extractArgs(args)
+      }
+    } else {
+      val newArgs = new Array[Value](argsType.size)
+      for (i <- 0 until argsType.size - 1) {
+        newArgs.update(i, args(i))
+      }
+      val repArgs = ListBuffer[Any]()
+      for (i <- argsType.size - 1 until args.length) {
+        repArgs += (args(i) match {
+          case Val(v) => v
+        })
+      }
+      newArgs.update(argsType.size - 1, Val(repArgs.toSeq))
+      extractArgs(newArgs)
+    }
   }
 
   private def extractExprFromArg(expr0: Term.Arg) = {

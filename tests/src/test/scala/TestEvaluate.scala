@@ -27,6 +27,30 @@ class TestEvaluate extends FunSuite {
      })
   }
 
+  test("unary selection") {
+    assert(eval("""
+      |{
+      |   val x = Array(2, 3, 4, 5, 6, 7)
+      |   x.length
+      |}""".stripMargin.parse[Term]) match {
+        case Val(6) => true
+        case _ => false
+      })
+  }
+
+    test("infix application") {
+    assert(eval("""
+      |{
+      |   val x = Array(2, 3, 4, 5, 6, 7)
+      |   x update (0, 1)
+      |   x apply (0)
+      |}
+      """.stripMargin.parse[Term]) match {
+        case Val(1) => true
+        case _ => false
+      })
+  }
+
   test("simple main with args") {
     val stat: Stat = """
             |object Test {
@@ -36,10 +60,10 @@ class TestEvaluate extends FunSuite {
             |    val y = x * x
             |    println(y)
             |    println(args.length)
-            |    println(args.apply(0) + x)
+            |    println((args apply 0) + x)
             |  }
             |}
-        """.stripMargin.parse[Stat]
+            """.stripMargin.parse[Stat]
 
     val env = Env("args" -> Array[String]("test", "if", "it", "works", "for", "6"))
     assert(evalMain(stat, env) match {
@@ -49,7 +73,7 @@ class TestEvaluate extends FunSuite {
   }
 
   test("defining functions") {
-    eval("""
+    assert(eval("""
         |{
         |   def loop(x: Int): Int = {
         |       def helper(x: Int) = true
@@ -58,20 +82,43 @@ class TestEvaluate extends FunSuite {
         |   }
         |   loop(42)
         |}
-        """.stripMargin.parse[Term])
+        """.stripMargin.parse[Term]) match {
+        case Val(0) => true
+        case _ => false
+      })
   }
 
   test("compiled method calls") {
-    evalMain("""
-        |object Test {
-        |   def main(args: Array[String]): Unit = {
-        |       val x = 2
-        |       println(x.toString)
-        |       println(x.toDouble)
-        |       println(x + x)
-        |   }
+    assert(eval("""
+        |{
+        |   val x = 2
+        |   x.toString
         |}
-        """.stripMargin.parse[Stat])
+        """.stripMargin.parse[Term]) match {
+      case Val("2") => true
+      case _ => false
+    })
+
+    assert(eval("""
+        |{
+        |   val x = 2
+        |   x.toDouble
+        |}
+        """.stripMargin.parse[Term]) match {
+      case Val(2.0) => true
+      case _ => false
+    })
+
+
+    assert(eval("""
+        |{
+        |   val x = 2
+        |   x + x
+        |}
+        """.stripMargin.parse[Term]) match {
+      case Val(4) => true
+      case _ => false
+    })
   }
 
   test("Creating a List") {
