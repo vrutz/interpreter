@@ -122,8 +122,9 @@ class TestEvaluate extends FunSuite {
   }
 
   test("Creating a List") {
-    eval("""{
-      |val x = List.apply(2)
+    eval(
+      """{
+      |val x = List apply (2)
       |}""".stripMargin.parse[Term])
   }
 

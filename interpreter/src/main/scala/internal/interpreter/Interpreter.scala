@@ -184,7 +184,6 @@ object Interpreter {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
             getFFI(name) match {
               case f.Intrinsic(className: String, methodName: String, signature: String) =>
-              // println(s"Trying to call $methodName from $className on $caller with $arg")
                 if (caller.value.getClass.isArray) {
                   (invokeArrayMethod(name.toString)(caller.value.asInstanceOf[AnyRef], arg.value), callerEnv)
                 } else if(className.head != 'L' || className == "Ljava/lang/String;"){
