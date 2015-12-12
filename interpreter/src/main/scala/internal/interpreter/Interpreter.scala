@@ -166,10 +166,7 @@ object Interpreter {
             val module = c.getField("MODULE$").get(c)
 
             // Call the method
-            (method.invoke(module, typeCompliantArgs: _*) match {
-              case null => Val(())
-              case res => Val(res)
-            }, argsEnv)
+            (Val(method.invoke(module, typeCompliantArgs: _*)), argsEnv)
 
           // User defined function
           case f.Zero =>
@@ -177,9 +174,9 @@ object Interpreter {
             evaluateFunction(env(Local(name)).asInstanceOf[Function], aexprs, env)
         }
 
-      case q"${expr0: Term} ${name: Term.Name} ${expr1: Term.Arg}" =>
+      case q"${expr0: Term} ${name: Term.Name} ${arg0: Term.Arg}" =>
         val (caller: Val, callerEnv: Environment) = evaluate(expr0, env)
-        val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(expr1), callerEnv)
+        val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(arg0), callerEnv)
         name.defn match {
           case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
             getFFI(name) match {
@@ -192,9 +189,17 @@ object Interpreter {
                   (invokeObjectBinaryMethod(methodName)(caller.value, arg.value), argEnv)
                 }
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
-                ???
+                // Get class, and the right method
+                val c: Class[_] = Class.forName(jvmToFullName(className))
+                val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
+
+                val method = c.getMethod(fieldName, argsType: _*)
+
+                (Val(method.invoke(caller.value, arg.value.asInstanceOf[Object])), argEnv)
+
               case f.Zero =>
-                ???
+                evaluateFunction(env(Local(name)).asInstanceOf[Function], Seq(arg0), env)
+
             }
         }
 
@@ -244,40 +249,39 @@ object Interpreter {
   private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
     // println(s"Env: $env")
-    // println(term)
     val res = term match {
       // Literal
-      case x: Lit => evaluateLiteral(x, env)
+      case x: Lit => println("Evaluating literal"); evaluateLiteral(x, env)
 
       // Ifs
-      case t: m.Term.If => evaluateIf(t, env)
+      case t: m.Term.If => println("Evaluating if"); evaluateIf(t, env)
 
       // Name
-      case name: Term.Name => env(Local(name)) match {
+      case name: Term.Name => println("Evaluating name"); env(Local(name)) match {
          case l @ Val(_) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => (f, env)
         }
 
       // Contructors
-      case q"${name: Ctor.Name}[..$_](..$aexprs)" => evaluateConstructor(term, env)
+      case q"${name: Ctor.Name}[..$_](..$aexprs)" => println("Evaluating constructor"); evaluateConstructor(term, env)
 
       // Application
-      case t: m.Term.Apply => evaluateApplication(t, env)
-      case t: m.Term.ApplyInfix => evaluateApplication(t, env)
-      case t: m.Term.ApplyUnary => evaluateApplication(t, env)
+      case t: m.Term.Apply => println("Evaluating apply"); evaluateApplication(t, env)
+      case t: m.Term.ApplyInfix => println("Evaluating apply infix"); evaluateApplication(t, env)
+      case t: m.Term.ApplyUnary => println("Evaluating apply unary"); evaluateApplication(t, env)
 
       // Selection
-      case q"${expr0: Term}.${expr1: Term}" => evaluateSelection(term, env)
+      case q"${expr0: Term}.${expr1: Term}" => println("Evaluating selection"); evaluateSelection(term, env)
 
       // Block
-      case t: m.Term.Block => evaluateBlock(t, env)
+      case t: m.Term.Block => println("Evaluating block"); evaluateBlock(t, env)
 
       // Lambda
-      case q"(..${args: Seq[Term.Param]}) => $expr" => evaluateLambda(term, env)
+      case q"(..${args: Seq[Term.Param]}) => $expr" => println("Evaluating lambda"); evaluateLambda(term, env)
 
       // Patterns
-      case q"${expr: Term} match { ..case $casesnel }" => evaluatePattern(term, env)
+      case q"${expr: Term} match { ..case $casesnel }" => println("Evaluating pattern matching"); evaluatePattern(term, env)
 
       case q"${expr: Term}[$_]" => evaluate(expr, env)
 
