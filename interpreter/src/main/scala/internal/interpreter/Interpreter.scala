@@ -18,6 +18,8 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
+  var debug = false
+
   private def evaluateLiteral(term: Lit, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     (Val(term.value), env)
   }
@@ -56,7 +58,6 @@ object Interpreter {
                 (res :: evaluatedExprs, e)
             }
         }
-        // newEnv.propagateChanges
         (l.head, newEnv.pop._2)
     }
   }
@@ -68,7 +69,7 @@ object Interpreter {
         (name.defn, evalExpr) match {
           // All intrinsic operations on arrays such as length, apply ...
           case (_, Val(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
-            // println(Val(jvmInstance))
+            // eprintln(Val(jvmInstance))
             (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
 
           // All intrinsic operations such as toChar, toInt, ...
@@ -128,14 +129,14 @@ object Interpreter {
     require(term.isInstanceOf[m.Term.Apply] || term.isInstanceOf[m.Term.ApplyInfix] || term.isInstanceOf[m.Term.ApplyUnary])
     term match {
       case q"${name: Term.Name}(..$aexprs)" =>
-        println(getFFI(name))
+        eprintln(s"$name: ${getFFI(name)}")
         getFFI(name) match {
           // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
             // Evaluate caller
-            // println(s"Caller $name\nClassName: $className\nMethod: $methodName")
-            // println(s"Env is $env")
-            // println(s"Args in env: ${env(Local(name))}")
+            // eprintln(s"Caller $name\nClassName: $className\nMethod: $methodName")
+            // eprintln(s"Env is $env")
+            // eprintln(s"Args in env: ${env(Local(name))}")
             val (Val(callerJVM), callerEnv) = evaluate(name, env)
 
             // Evaluate arguments
@@ -175,34 +176,10 @@ object Interpreter {
             evaluateFunction(env(Local(name)).asInstanceOf[Function], aexprs, env)
         }
 
+      case q"${expr0: Term}.${name: Term.Name}(${arg0: Term.Arg})" => 
+        evaluateBinaryOp(expr0, name, arg0, env)
       case q"${expr0: Term} ${name: Term.Name} ${arg0: Term.Arg}" =>
-        val (caller: Val, callerEnv: Environment) = evaluate(expr0, env)
-        val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(arg0), callerEnv)
-        name.defn match {
-          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
-            getFFI(name) match {
-              case f.Intrinsic(className: String, methodName: String, signature: String) =>
-                if (caller.value.getClass.isArray) {
-                  (invokeArrayMethod(name.toString)(caller.value.asInstanceOf[AnyRef], arg.value), callerEnv)
-                } else if(className.head != 'L' || className == "Ljava/lang/String;"){
-                  (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
-                } else {
-                  (invokeObjectBinaryMethod(methodName)(caller.value, arg.value), argEnv)
-                }
-              case f.JvmMethod(className: String, fieldName: String, signature: String) =>
-                // Get class, and the right method
-                val c: Class[_] = Class.forName(jvmToFullName(className))
-                val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
-
-                val method = c.getMethod(fieldName, argsType: _*)
-
-                (Val(method.invoke(caller.value, arg.value.asInstanceOf[Object])), argEnv)
-
-              case f.Zero =>
-                evaluateFunction(env(Local(name)).asInstanceOf[Function], Seq(arg0), env)
-
-            }
-        }
+        evaluateBinaryOp(expr0, name, arg0, env)
 
       case q"${expr: Term} ${name: Term.Name} (..${aexprs: Seq[Term.Arg]})" =>
         // Evaluate the caller
@@ -246,8 +223,8 @@ object Interpreter {
 
   private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     val q"(..${args: Seq[Term.Param]}) => ${expr: Term}" = term
-    println(args)
-    println(expr)
+    eprintln(args)
+    eprintln(expr)
     (Function(None, args, expr), env)
   }
   private def evaluatePattern(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
@@ -273,7 +250,7 @@ object Interpreter {
               }
             // case p"(..$patsnel)" => ???
             // case p"$pat1 $name (..$apatsnel)" => ???
-            case p"$pat1: $ptpe" =>
+            case p"$pat1: ${ptpe: Pat.Type}" if scrutinee.tpe <:< ptpe.tpe =>
               checkPat(pat1, patEnv)
             case p"${name: Term.Name}" if patEnv(Local(name)) == scrutineeEval => Some(evaluate(expr, patEnv))
             case p"$expr.${name: Term.Name}" =>
@@ -296,49 +273,51 @@ object Interpreter {
     result
   }
 
-  private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
-    // println(s"to evaluate: $term")
-    // println(s"Env: $env")
+  private[meta] def evaluate(term: Term, env: Environment = new Environment(), d: Boolean = debug)
+    (implicit ctx: Context): (Value, Environment) = {
+      debug = d
+    // eprintln(s"to evaluate: $term")
+    // eprintln(s"Env: $env")
     val res = term match {
       // Literal
-      case x: Lit => println("Evaluating literal"); evaluateLiteral(x, env)
+      case x: Lit => eprintln("Evaluating literal"); evaluateLiteral(x, env)
 
       // Ifs
-      case t: m.Term.If => println("Evaluating if"); evaluateIf(t, env)
+      case t: m.Term.If => eprintln("Evaluating if"); evaluateIf(t, env)
 
       // Name
-      case name: Term.Name => println("Evaluating name"); env(Local(name)) match {
+      case name: Term.Name => eprintln("Evaluating name"); env(Local(name)) match {
          case l @ Val(_) => (l, env)
          case f @ Function(name, Nil, expr) => evaluate(expr, env)
          case f @ Function(name, args, expr) => (f, env)
         }
 
       // Contructors
-      case q"${name: Ctor.Name}[..$_](..$aexprs)" => println("Evaluating constructor"); evaluateConstructor(term, env)
+      case q"${name: Ctor.Name}[..$_](..$aexprs)" => eprintln("Evaluating constructor"); evaluateConstructor(term, env)
 
       // Application
-      case t: m.Term.Apply => println("Evaluating apply"); evaluateApplication(t, env)
-      case t: m.Term.ApplyInfix => println("Evaluating apply infix"); evaluateApplication(t, env)
-      case t: m.Term.ApplyUnary => println("Evaluating apply unary"); evaluateApplication(t, env)
+      case t: m.Term.Apply => eprintln("Evaluating apply"); evaluateApplication(t, env)
+      case t: m.Term.ApplyInfix => eprintln("Evaluating apply infix"); evaluateApplication(t, env)
+      case t: m.Term.ApplyUnary => eprintln("Evaluating apply unary"); evaluateApplication(t, env)
 
       // Selection
-      case t: m.Term.Select => println("Evaluating selection"); evaluateSelection(term, env)
+      case t: m.Term.Select => eprintln("Evaluating selection"); evaluateSelection(term, env)
 
       // Block
-      case t: m.Term.Block => println("Evaluating block"); evaluateBlock(t, env)
+      case t: m.Term.Block => eprintln("Evaluating block"); evaluateBlock(t, env)
 
       // Lambda
-      case q"(..${args: Seq[Term.Param]}) => $expr" => println("Evaluating lambda"); evaluateLambda(term, env)
+      case q"(..${args: Seq[Term.Param]}) => $expr" => eprintln("Evaluating lambda"); evaluateLambda(term, env)
 
       // Patterns
-      case q"${expr: Term} match { ..case $casesnel }" => println("Evaluating pattern matching"); evaluatePattern(term, env)
+      case q"${expr: Term} match { ..case $casesnel }" => eprintln("Evaluating pattern matching"); evaluatePattern(term, env)
 
       case q"${expr: Term}[$_]" => evaluate(expr, env)
 
       // Safety Net
       case _ => (Val(null), env)
     }
-    // println(s"$term evaluates to ${res._1}")
+    // eprintln(s"$term evaluates to ${res._1}")
     res
   }
 
@@ -362,22 +341,6 @@ object Interpreter {
           case (newNewEnv: Environment, (pat, e)) => link(Seq(pat), e, newNewEnv)
         }
       }
-
-      case (newEnv, p"$ref(..$apats)") =>
-        println(ref)
-        val justArgExprs = expr match {
-          case q"$expr0(..$aexprs)" =>
-            aexprs map extractExprFromArg
-        }
-        val justPats = apats map {
-          case parg"$pat" => Seq(pat)
-//          case parg"_*" => p"_"
-        }
-        // TODO Redo all that
-//        (justPats zip justArgExprs).foldLeft(newEnv) {
-//          case (newNewEnv: Environment, (seqPat, e: Term)) => link(seqPat, e, newNewEnv)
-//        }
-        ???
     }
   }
 
@@ -397,10 +360,40 @@ object Interpreter {
       (argsBuffer.toArray, argEnv)
   }
 
+  private def evaluateBinaryOp(expr0: Term, op: Term.Name, arg0: Term.Arg, env: Environment)
+    (implicit ctx: Context) = {
+    val (caller: Val, callerEnv: Environment) = evaluate(expr0, env)
+    val (arg: Val, argEnv: Environment) = evaluate(extractExprFromArg(arg0), callerEnv)
+    op.defn match {
+      case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = ${expr2: Term}" =>
+        getFFI(name) match {
+          case f.Intrinsic(className: String, methodName: String, signature: String) =>
+            if (caller.value.getClass.isArray) {
+              (invokeArrayMethod(name.toString)(caller.value.asInstanceOf[AnyRef], arg.value), callerEnv)
+            } else if(className.head != 'L' || className == "Ljava/lang/String;"){
+              (invokePrimitiveBinaryMethod(methodName)(caller.value, arg.value), argEnv)
+            } else {
+              (invokeObjectBinaryMethod(methodName)(caller.value, arg.value), argEnv)
+            }
+          case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+            // Get class, and the right method
+            val c: Class[_] = Class.forName(jvmToFullName(className))
+            val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
+
+            val method = c.getMethod(fieldName, argsType: _*)
+
+            (Val(method.invoke(caller.value, arg.value.asInstanceOf[Object])), argEnv)
+
+          case f.Zero =>
+            evaluateFunction(env(Local(name)).asInstanceOf[Function], Seq(arg0), env)
+        }
+    }
+  }
+
   private def evaluateFunction(fun: Function, aexprs: Seq[Term.Arg], env: Environment)
     (implicit ctx: Context) = {
     // Evaluate the arguments and add them to the environment
-     val Function(funName, args: Seq[Term.Param], code) = fun
+    val Function(funName, args: Seq[Term.Param], code) = fun
     val (argsValues: Array[Value], evArgsEnv: Environment) = evaluateArguments(aexprs, env)
 
     val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
@@ -449,5 +442,9 @@ object Interpreter {
       case arg"$expr: _*" => expr
       case expr: Term => expr
     }
+  }
+
+  private def eprintln(s: Any) = {
+    if(debug) println(s)
   }
 }

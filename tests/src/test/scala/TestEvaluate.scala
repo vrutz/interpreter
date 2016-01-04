@@ -206,20 +206,29 @@ class TestEvaluate extends FunSuite {
       |}""".stripMargin.parse[Term]) == Val(3))
   }
 
-  test("match with type ascribtion") {
-      // |    case x: Double => x + 1
+  test("match with good type ascribtion") {
     assert(eval("""
       |{
-      |  val x: Any = 2
-      |  x match {
+      |  2 match {
       |    case x: Int => x + 2
       |    case _ => 0
       |  }
       |}""".stripMargin.parse[Term]) == Val(4))
   }
 
+  test("match with wrong type ascribtion") {
+    assert(eval("""
+      |{
+      |  val x: Any = 2
+      |  x match {
+      |    case x: Double => x + 2
+      |    case _ => 0
+      |  }
+      |}""".stripMargin.parse[Term]) == Val(0))
+  }
+
   test("identity lambda function") {
-    assert(eval(q"""{val x = (y: Int) => y; x(2) }""") == Val(2))
+    assert(eval(q"""{val x = (y: Int) => y; x(2) }""", true) == Val(2))
   }
 
   test("Macro 1 Scala Days") {
