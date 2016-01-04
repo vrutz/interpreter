@@ -16,7 +16,7 @@ sealed trait Value {
 
 // final case class Instance(jvmInstance: Any) extends Value
 
-final case class Function(name: Term.Name, params: Seq[Term.Param], code: Term) extends Value
+final case class Function(name: Option[Term.Name], params: Seq[Term.Param], code: Term) extends Value
 
 final case class Val(value: Any) extends Value {
   override def toString = value match {

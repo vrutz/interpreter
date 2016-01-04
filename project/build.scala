@@ -61,6 +61,7 @@ object build extends Build {
       val classpath = defaultValue.files.map(_.getAbsolutePath)
       val scalaLibrary = classpath.map(_.toString).find(_.contains("scala-library")).get
       System.setProperty("sbt.paths.scalalibrary.classes", scalaLibrary)
+      // System.setProperty("sbt.paths.scalameta.classes", scalaMeta)
       System.setProperty("sbt.paths.scrutinee.classes", classpath.mkString(java.io.File.pathSeparator))
       defaultValue
     }

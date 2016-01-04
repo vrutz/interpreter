@@ -44,9 +44,9 @@ object Interpreter {
           case ((evaluatedExprs, exprEnv), nextExpr) =>
             nextExpr match {
               case q"..$mods def $name: $tpeopt = $expr" =>
-                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, Nil, expr)))
+                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(Some(name), Nil, expr)))
               case q"..$mods def $name(..$params): $tpeopt = $expr" =>
-                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(name, params, expr)))
+                (Val(()) :: evaluatedExprs, exprEnv + (Local(name), Function(Some(name), params, expr)))
               case q"..$mods val ..$pats: $tpeopt = $expr" =>
                 (Val(()) :: evaluatedExprs, link(pats, expr, exprEnv))
               case q"..$mods var ..$pats: $tpeopt = $expropt" if expropt.isDefined =>
@@ -128,6 +128,7 @@ object Interpreter {
     require(term.isInstanceOf[m.Term.Apply] || term.isInstanceOf[m.Term.ApplyInfix] || term.isInstanceOf[m.Term.ApplyUnary])
     term match {
       case q"${name: Term.Name}(..$aexprs)" =>
+        println(getFFI(name))
         getFFI(name) match {
           // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
@@ -243,8 +244,57 @@ object Interpreter {
   }
 }
 
-  private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = ???
-  private def evaluatePattern(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = ???
+  private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    val q"(..${args: Seq[Term.Param]}) => ${expr: Term}" = term
+    println(args)
+    println(expr)
+    (Function(None, args, expr), env)
+  }
+  private def evaluatePattern(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    val (scrutinee, cases: Seq[Case]) = term match {
+      case q"${expr: Term} match { ..case $casesnel }" => (expr, casesnel)
+    }
+
+    val (scrutineeEval, scrutineeEnv) = evaluate(scrutinee, env)
+
+    val Some(result) = cases.foldLeft(None: Option[(Value, Environment)]) {
+      case (None, p"case $pat0 if $expropt => $expr") =>
+        def checkPat(pattern: meta.Pat, patEnv: Environment): Option[(Value, Environment)] = pattern match {
+            case p"_" => Some(evaluate(expr, patEnv))
+            case q"${name: Pat.Var.Term}" => Some(evaluate(expr, patEnv + (Local(name.name), scrutineeEval)))
+            case p"$pname @ $apat" => apat match {
+                // case parg"_*" => 
+                case parg"${pat1: meta.Pat}" => checkPat(pat1, patEnv + (Local(pname.name), scrutineeEval))
+              }
+            case p"$pat1 | $pat2" => 
+              checkPat(pat1, patEnv) match {
+                case None => checkPat(pat2, patEnv)
+                case r => r
+              }
+            // case p"(..$patsnel)" => ???
+            // case p"$pat1 $name (..$apatsnel)" => ???
+            case p"$pat1: $ptpe" =>
+              checkPat(pat1, patEnv)
+            case p"${name: Term.Name}" if patEnv(Local(name)) == scrutineeEval => Some(evaluate(expr, patEnv))
+            case p"$expr.${name: Term.Name}" =>
+              val (patternEval, patternEnv) = evaluate(q"$expr.$name", patEnv)
+              if(patternEval == scrutineeEval)
+                Some(evaluate(expr, patEnv))
+              else None
+            case p"${lit: Lit}" if Val(lit.value) == scrutineeEval => Some(evaluate(expr, patEnv))
+            case _ => None
+          }
+
+          val res = checkPat(pat0, scrutineeEnv)
+
+          if (res != None && (expropt == None || evaluate(expropt.get, res.get._2)._1 == Val(true)))
+            res
+          else None
+      case (Some((res, resEnv)), _) => Some((res, resEnv))
+    }
+
+    result
+  }
 
   private[meta] def evaluate(term: Term, env: Environment = new Environment())(implicit ctx: Context): (Value, Environment) = {
     // println(s"to evaluate: $term")
@@ -272,7 +322,7 @@ object Interpreter {
       case t: m.Term.ApplyUnary => println("Evaluating apply unary"); evaluateApplication(t, env)
 
       // Selection
-      case q"${expr0: Term}.${expr1: Term}" => println("Evaluating selection"); evaluateSelection(term, env)
+      case t: m.Term.Select => println("Evaluating selection"); evaluateSelection(term, env)
 
       // Block
       case t: m.Term.Block => println("Evaluating block"); evaluateBlock(t, env)

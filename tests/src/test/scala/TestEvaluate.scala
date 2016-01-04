@@ -15,6 +15,7 @@ import internal.representations._
 
 class TestEvaluate extends FunSuite {
   val scalaLibrary = sys.props("sbt.paths.scalalibrary.classes")
+  // val metaLibrary = sys.props("")
   // val classpath = sys.props("sbt.paths.scrutinee.classes")
   // val sourcepath = sys.props("sbt.paths.scrutinee.sources")
 
@@ -109,12 +110,19 @@ class TestEvaluate extends FunSuite {
       """.stripMargin.parse[Term]) == Val(List(2)))
   }
 
-  test("Call methods on Set") {
+  test("Call methods on List") {
     assert(eval("""{
       |  val x = List(2)
       |  x apply (0)
       |}""".stripMargin.parse[Term]) == Val(2))
   }
+
+  // test("Other calls on List") {
+  //   assert(eval("""{
+  //     |  val x = List(2)
+  //     |  3 :: x
+  //     |}""".stripMargin.parse[Term]) == Val(List(3, 2)))
+  // }
 
   test("literal int") {
     assert(eval(q"1") match {
@@ -145,17 +153,73 @@ class TestEvaluate extends FunSuite {
   }
 
   test("if true") {
-    assert(eval(q"if (true) { 1 } else { 0 }") match {
-      case Val(1) => true
-      case _ => false
-    })
+    assert(eval(q"if (true) { 1 } else { 0 }") == Val(1))
   }
 
   test("if false") {
-    assert(eval(q"if (false) { 1 } else { 0 }") match {
-      case Val(0) => true
-      case _ => false
-    })
+    assert(eval(q"if (false) { 1 } else { 0 }") == Val(0))
+  }
+
+  test("simple match") {
+    assert(eval("""
+      |2 match {
+      |  case _ => 0
+      |}""".stripMargin.parse[Term]) == Val(0))
+  }
+
+  test("match with literal") {
+    assert(eval("""
+      |2 match {
+      |  case 2 => 0
+      |}""".stripMargin.parse[Term]) == Val(0))
+  }
+
+  test("match with renaming") {
+    assert(eval("""
+      |2 match {
+      |  case x => x + 1
+      |}""".stripMargin.parse[Term]) == Val(3))
+  }
+
+  test("match with comparison to variable") {
+    assert(eval("""
+      |{
+      |val x = 2
+      |2 match {
+      |  case `x` => x + 1
+      |}}""".stripMargin.parse[Term]) == Val(3))
+  }
+
+  test("match with if condition") {
+    assert(eval("""
+      |2 match {
+      |  case x if x == 2 => x + 1
+      |}""".stripMargin.parse[Term]) == Val(3))
+  }
+
+  test("match with multiple matches") {
+    assert(eval("""
+      |2 match {
+      |  case x if x == 2 => x + 1
+      |  case x => x + 2
+      |  case _ => 0
+      |}""".stripMargin.parse[Term]) == Val(3))
+  }
+
+  test("match with type ascribtion") {
+      // |    case x: Double => x + 1
+    assert(eval("""
+      |{
+      |  val x: Any = 2
+      |  x match {
+      |    case x: Int => x + 2
+      |    case _ => 0
+      |  }
+      |}""".stripMargin.parse[Term]) == Val(4))
+  }
+
+  test("identity lambda function") {
+    assert(eval(q"""{val x = (y: Int) => y; x(2) }""") == Val(2))
   }
 
   test("Macro 1 Scala Days") {
@@ -261,9 +325,9 @@ class TestEvaluate extends FunSuite {
             }
           }
             val args: Val = tEnv.get.getOrElse(Local(argsName), Val(Array[String]())).asInstanceOf[Val]
-            (tEnv + (Local(main), Function(main, params, expr)) + (Local(argsName), args), Some(main))
+            (tEnv + (Local(main), Function(Some(main), params, expr)) + (Local(argsName), args), Some(main))
           case ((tEnv, mainName), q"..$mods def $name[..$tparams](..$params): $tpeopt = $expr") => 
-            (tEnv + (Local(name), Function(name, params, expr)), mainName)
+            (tEnv + (Local(name), Function(Some(name), params, expr)), mainName)
         }
 
         val Function(_, arguments, term) = completeEnv(Local(main.get))
