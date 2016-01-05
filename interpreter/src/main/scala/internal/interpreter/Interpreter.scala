@@ -18,7 +18,7 @@ import java.lang.reflect.Modifier
 
 object Interpreter {
 
-  var debug = false
+  var debug: Boolean = false
 
   private def evaluateLiteral(term: Lit, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     (Val(term.value), env)
@@ -273,9 +273,8 @@ object Interpreter {
     result
   }
 
-  private[meta] def evaluate(term: Term, env: Environment = new Environment(), d: Boolean = debug)
+  private[meta] def evaluate(term: Term, env: Environment = new Environment())
     (implicit ctx: Context): (Value, Environment) = {
-      debug = d
     // eprintln(s"to evaluate: $term")
     // eprintln(s"Env: $env")
     val res = term match {
