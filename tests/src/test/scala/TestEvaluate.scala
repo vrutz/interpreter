@@ -15,17 +15,14 @@ import internal.representations._
 
 class TestEvaluate extends FunSuite {
   val scalaLibrary = sys.props("sbt.paths.scalalibrary.classes")
-  // val metaLibrary = sys.props("")
+  // val metaLibrary  = sys.props("sbt.paths.scalameta.classes")
   // val classpath = sys.props("sbt.paths.scrutinee.classes")
   // val sourcepath = sys.props("sbt.paths.scrutinee.sources")
 
-  implicit val c: Context = Context(Artifact(scalaLibrary))
+  implicit val c: Context = Context(Artifact(scalaLibrary))//, Artifact(metaLibrary))
 
   test("literal") {
-     assert(eval(q"""{ def x = 2; x }""") match {
-        case Val(2) => true
-        case _ => false
-     })
+     assert(eval(q"""{ def x = 2; x }""") == Val(2), true)
   }
 
   test("unary selection") {
@@ -75,6 +72,23 @@ class TestEvaluate extends FunSuite {
         |   loop(42)
         |}
         """.stripMargin.parse[Term])  == Val(0))
+  }
+
+  test("factorial") {
+    assert(eval("""
+        |{
+        |   def factorial(x: Int): Int = {
+        |     x match {
+        |       case 0 => 1
+        |       case 1 => 1
+        |       case _ => x * factorial(x - 1)
+        |     }
+        |   }
+        |   val y = factorial(3)
+        |   println(y)
+        |   y
+        |}
+        """.stripMargin.parse[Term])  == Val(6))
   }
 
   test("compiled method calls") {
@@ -227,8 +241,17 @@ class TestEvaluate extends FunSuite {
       |}""".stripMargin.parse[Term]) == Val(0))
   }
 
+  test("match with object unapply") {
+    assert(eval("""
+      |{
+      |  val x = List(2)
+      |
+      |  x.length
+      |}""".stripMargin.parse[Term]) == Val(1))
+  }
+
   test("identity lambda function") {
-    assert(eval(q"""{val x = (y: Int) => y; x(2) }""", true) == Val(2))
+    assert(eval(q"""{val x = (y: Int) => y; x(2) }""") == Val(2))
   }
 
   test("Macro 1 Scala Days") {

@@ -14,6 +14,16 @@ object build extends Build {
     test in Test := (test in tests in Test).value
   ) aggregate (interpreter, tests)
 
+  // lazy val scalameta = Project(
+  //   id = "scalameta"
+  //   base = file("scalameta")
+  // ) settings (
+  //   sharedSettings: _*
+  // ) settings (
+  //   addCompilerPlugin("org.scalameta" % "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full),
+  //   scalacOptions += "-Ybackend:GenBCode"
+  // )
+
   lazy val scrutinee = Project(
     id = "scrutinee",
     base = file("scrutinee")
@@ -60,8 +70,9 @@ object build extends Build {
       val defaultValue = (fullClasspath in Test).value
       val classpath = defaultValue.files.map(_.getAbsolutePath)
       val scalaLibrary = classpath.map(_.toString).find(_.contains("scala-library")).get
+      // val scalameta = classpath.map(_.toString).find(_.contains("scalameta")).get
       System.setProperty("sbt.paths.scalalibrary.classes", scalaLibrary)
-      // System.setProperty("sbt.paths.scalameta.classes", scalaMeta)
+      // System.setProperty("sbt.paths.scalameta.classes", scalameta)
       System.setProperty("sbt.paths.scrutinee.classes", classpath.mkString(java.io.File.pathSeparator))
       defaultValue
     }

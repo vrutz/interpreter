@@ -25,3 +25,4 @@ interpreter.iml
 .DS_Store?
 .ensime_cache
 .ensime_session
+scalameta

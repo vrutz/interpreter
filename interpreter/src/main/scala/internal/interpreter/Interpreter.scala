@@ -25,14 +25,12 @@ object Interpreter {
   }
 
   private def evaluateIf(term: m.Term.If, env: Environment)(implicit ctx: Context): (Value, Environment) = {
-    term match {
-      case q"if ($cond) ${thn: Term} else ${els: Term}" =>
-        val (Val(condVal: Boolean), e) = evaluate(cond, env)
-        if(condVal) {
-          evaluate(thn, e)
-        } else {
-          evaluate(els, e)
-        }
+    val q"if ($cond) ${thn: Term} else ${els: Term}" = term 
+    val (Val(condVal: Boolean), e) = evaluate(cond, env)
+    if(condVal) {
+      evaluate(thn, e)
+    } else {
+      evaluate(els, e)
     }
   }
 
@@ -63,47 +61,40 @@ object Interpreter {
   }
 
   private def evaluateSelection(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
-    term match {
-      case q"${expr: Term}.${name: Term.Name}" =>
-        val (evalExpr, envExpr) = evaluate(expr, env)
-        (name.defn, evalExpr) match {
-          // All intrinsic operations on arrays such as length, apply ...
-          case (_, Val(jvmInstance)) if getFFI(name).isInstanceOf[f.Intrinsic] && jvmInstance.getClass.isArray => 
-            // eprintln(Val(jvmInstance))
-            (invokeArrayMethod(name.toString)(jvmInstance.asInstanceOf[AnyRef]), envExpr)
+    val q"${expr: Term}.${name: Term.Name}" = term
 
-          // All intrinsic operations such as toChar, toInt, ...
-          case (_, Val(lit)) if getFFI(name).isInstanceOf[f.Intrinsic] =>
-            val f.Intrinsic(className, methodName, signature) = getFFI(name)
-            if (className.head != 'L') {
-              (invokePrimitiveUnaryMethod(methodName)(lit), envExpr)
-            } else {
-              (invokeObjectUnaryMethod(methodName)(lit) , envExpr)
-            }
-
-          case (q"this", e: Val) => (e, envExpr)
-
-          // Use reflection to get fields etc...
-          case (q"..$mods val ..$pats: $tpeopt = ${expr: Term}", Val(instance)) =>
-            val c = instance.getClass
-            val field = c.getDeclaredField(pats.toString)
-            val value = Val(field.get(instance).asInstanceOf[Any])
-            (value, envExpr)
-          case (q"..$mods var ..$pats: $tpeopt = $expropt", Val(instance)) =>
-            val c = instance.getClass
-            val field = c.getDeclaredField(pats.toString)
-            val value = Val(field.get(instance).asInstanceOf[Any])
-            (value, envExpr)
-
-          case (q"..$mods def $name: $tpeopt = ${expr: Term}", _) => 
-            val e = envExpr push envExpr.get
-            val (res, resEnv) = evaluate(q"$expr", e + (This, evalExpr))
-            (res, resEnv.pop._2)
-          case (q"..$mods def $name(): $tpeopt = ${expr: Term}", _) => 
-            val e = envExpr push envExpr.get
-            val (res, resEnv) = evaluate(q"$expr", e + (This, evalExpr))
-            (res, resEnv.pop._2)
+    val (Val(evalVal), envExpr) = evaluate(expr, env)
+    eprintln(getFFI(name))
+    getFFI(name) match {
+      case f.Intrinsic(className: String, methodName: String, signature: String) =>
+      if(evalVal.getClass.isArray) {
+        (invokeArrayMethod(name.toString)(evalVal.asInstanceOf[AnyRef]), envExpr)
+        } else if(className.head != 'L') {
+          (invokePrimitiveUnaryMethod(methodName)(evalVal), envExpr)
+        } else {
+          (invokeObjectUnaryMethod(methodName)(evalVal) , envExpr)
         }
+
+      case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+        eprintln(className)
+        eprintln(fieldName)
+        eprintln(signature)
+        val c = Class.forName(jvmToFullName(className))
+        name.defn match {
+          case q"..$mods def ${nameField: Term.Name}(...$_): $_ = ???" =>
+            val m = c.getMethod(fieldName)
+            (Val(m.invoke(evalVal)), envExpr)
+
+          case q"..$mods val ${nameField: Term.Name}: $_ = ???" =>
+            val f = c.getDeclaredField(fieldName)
+            (Val(f.get(evalVal)), envExpr)
+
+          case q"..$mods var ${nameField: Term.Name}: $_ = ???" =>
+            val f = c.getDeclaredField(fieldName)
+            (Val(f.get(evalVal)), envExpr)
+        }
+
+      case f.Zero => ??? // Should not happen since no user defined classes
     }
   }
 
@@ -218,8 +209,8 @@ object Interpreter {
       case q"${expr: Term}(..$aexprs)" =>
         val (fun @ Function(name, params, code), evalEnv) = evaluate(expr, env)
         evaluateFunction(fun, aexprs, evalEnv)
+    }
   }
-}
 
   private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     val q"(..${args: Seq[Term.Param]}) => ${expr: Term}" = term
@@ -227,12 +218,15 @@ object Interpreter {
     eprintln(expr)
     (Function(None, args, expr), env)
   }
+
   private def evaluatePattern(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     val (scrutinee, cases: Seq[Case]) = term match {
       case q"${expr: Term} match { ..case $casesnel }" => (expr, casesnel)
     }
 
     val (scrutineeEval, scrutineeEnv) = evaluate(scrutinee, env)
+
+    eprintln(s"scrutinee: $scrutineeEval")
 
     val Some(result) = cases.foldLeft(None: Option[(Value, Environment)]) {
       case (None, p"case $pat0 if $expropt => $expr") =>
@@ -243,13 +237,11 @@ object Interpreter {
                 // case parg"_*" => 
                 case parg"${pat1: meta.Pat}" => checkPat(pat1, patEnv + (Local(pname.name), scrutineeEval))
               }
-            case p"$pat1 | $pat2" => 
+            case p"$pat1 | $pat2" =>
               checkPat(pat1, patEnv) match {
                 case None => checkPat(pat2, patEnv)
                 case r => r
               }
-            // case p"(..$patsnel)" => ???
-            // case p"$pat1 $name (..$apatsnel)" => ???
             case p"$pat1: ${ptpe: Pat.Type}" if scrutinee.tpe <:< ptpe.tpe =>
               checkPat(pat1, patEnv)
             case p"${name: Term.Name}" if patEnv(Local(name)) == scrutineeEval => Some(evaluate(expr, patEnv))
@@ -259,7 +251,7 @@ object Interpreter {
                 Some(evaluate(expr, patEnv))
               else None
             case p"${lit: Lit}" if Val(lit.value) == scrutineeEval => Some(evaluate(expr, patEnv))
-            case _ => None
+            case p => eprintln(s"pattern not supported: $p"); None
           }
 
           val res = checkPat(pat0, scrutineeEnv)
@@ -275,7 +267,7 @@ object Interpreter {
 
   private[meta] def evaluate(term: Term, env: Environment = new Environment())
     (implicit ctx: Context): (Value, Environment) = {
-    // eprintln(s"to evaluate: $term")
+    eprintln(s"to evaluate: $term")
     // eprintln(s"Env: $env")
     val res = term match {
       // Literal
@@ -286,10 +278,10 @@ object Interpreter {
 
       // Name
       case name: Term.Name => eprintln("Evaluating name"); env(Local(name)) match {
-         case l @ Val(_) => (l, env)
-         case f @ Function(name, Nil, expr) => evaluate(expr, env)
-         case f @ Function(name, args, expr) => (f, env)
-        }
+        case v: Val => (v, env)
+        case Function(name, Nil, code) => evaluate(code, env)
+        case f: Function => (f, env)
+      }
 
       // Contructors
       case q"${name: Ctor.Name}[..$_](..$aexprs)" => eprintln("Evaluating constructor"); evaluateConstructor(term, env)
