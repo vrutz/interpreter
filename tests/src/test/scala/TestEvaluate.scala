@@ -14,12 +14,10 @@ import internal.representations._
  */
 
 class TestEvaluate extends FunSuite {
-  val scalaLibrary = sys.props("sbt.paths.scalalibrary.classes")
-  // val metaLibrary  = sys.props("sbt.paths.scalameta.classes")
-  // val classpath = sys.props("sbt.paths.scrutinee.classes")
-  // val sourcepath = sys.props("sbt.paths.scrutinee.sources")
+  val scalacp = "/Users/rutz/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.11.7.jar"
+  val scalametacp = "/Users/rutz/.ivy2/cache/org.scalameta/scalameta_2.11/jars/scalameta_2.11-0.1.0-SNAPSHOT.jar" 
 
-  implicit val c: Context = Context(Artifact(scalaLibrary))//, Artifact(metaLibrary))
+  implicit val c: Context = Context(Artifact(scalacp), Artifact(scalametacp))
 
   test("literal") {
      assert(eval(q"""{ def x = 2; x }""") == Val(2), true)
@@ -251,7 +249,7 @@ class TestEvaluate extends FunSuite {
   }
 
   test("identity lambda function") {
-    assert(eval(q"""{val x = (y: Int) => y; x(2) }""") == Val(2))
+    assert(eval(q"""{val x = (y: Int) => y; x apply (2) }""", true) == Val(2))
   }
 
   test("Macro 1 Scala Days") {
@@ -282,60 +280,6 @@ class TestEvaluate extends FunSuite {
       |}
       """.stripMargin.parse[Term])
   }
-
-  // test("Macro 2 Scala Days") {
-  //   eval("""
-  //     |{
-  //     |  def serializeImpl(T: Type)(implicit c: Context) = {
-  //     |    T match {
-  //     |      case ref: Type.Ref =>
-  //     |        val defn = ref.defn
-  //     |        if (defn.isClass || defn.isTrait || defn.isObject) {
-  //     |          val serializer = Term.fresh(defn.name + "Serializer")
-  //     |          val input = Term.fresh("input")
-  //     |          val body = {
-  //     |            def serializer(defn: Member, input: Term.Name, tagged: Boolean) = {
-  //     |              val fields = defn.ctor.params.map(_.field)
-  //     |              var entries: Seq[Term] = fields.map { field =>
-  //     |                q""" "\"" + ${field.name.toString} + "\": " + serialize($input.${field.name}) """
-  //     |              }
-  //     |              if (tagged) {
-  //     |                val tag = defn.supermembers.head.submembers.sortBy(_.name.toString).indexOf(defn).toString
-  //     |                entries :+= q""" "$$tag: " + $tag """
-  //     |              }
-  //     |              val unwrappedResult = entries.foldLeft(None: Option[Term]) { (acc, curr) =>
-  //     |                acc.map(acc => q"""$acc + ", " + $curr""").orElse(Some(curr))
-  //     |              }
-  //     |              val contents = unwrappedResult.getOrElse(q""" "" """)
-  //     |              q""" "{" + $contents + "}" """
-  //     |            }
-  //     |            if (defn.isClass) {
-  //     |              serializer(defn, input, tagged = false)
-  //     |            } else if (defn.isObject) {
-  //     |              serializer(defn, input, tagged = false)
-  //     |            } else if (defn.isTrait) {
-  //     |              val refined = Pat.fresh("input")
-  //     |              val clauses = defn.submembers.map(leaf => p"case $refined: ${leaf.tpe.pat} => ${serializer(leaf, refined.name, tagged = true)}")
-  //     |              q"$input match { ..case $clauses }"
-  //     |            } else {
-  //     |              abort(s"unsupported ref to ${defn.name}")
-  //     |            }
-  //     |          }
-  //     |          q"""
-  //     |            implicit object $serializer extends Serializer[$T] {
-  //     |              def serialize($input: $T): String = $body
-  //     |            }
-  //     |            $serializer
-  //     |          """
-  //     |        } else {
-  //     |          abort(s"unsupported ref to ${defn.name}")
-  //     |        }
-  //     |      case _ =>
-  //     |        abort(s"unsupported type $T")
-  //     |    }
-  //     |  }
-  //     |}""")
-  // }
 
   def evalMain(stat0: Stat, env: EnvImpl = Env())(implicit ctx: Context): Value = {
     val stat = ctx.typecheck(stat0).asInstanceOf[Stat]

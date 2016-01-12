@@ -94,7 +94,7 @@ object Interpreter {
             (Val(f.get(evalVal)), envExpr)
         }
 
-      case f.Zero => ??? // Should not happen since no user defined classes
+      // case f.Zero => ??? // Should not happen since no user defined classes
     }
   }
 
@@ -202,8 +202,7 @@ object Interpreter {
                 }
               case f.JvmMethod(className: String, fieldName: String, signature: String) =>
                 ???
-              case f.Zero =>
-                ???
+              // case f.Zero => ??? // Should not happen without user defined classes
             }
         }
       case q"${expr: Term}(..$aexprs)" =>
