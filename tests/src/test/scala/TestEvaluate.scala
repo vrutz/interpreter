@@ -14,10 +14,12 @@ import internal.representations._
  */
 
 class TestEvaluate extends FunSuite {
+  val scalaLib = sys.props("sbt.paths.scalalibrary.classes")
   val scalacp = "/Users/rutz/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.11.7.jar"
   val scalametacp = "/Users/rutz/.ivy2/cache/org.scalameta/scalameta_2.11/jars/scalameta_2.11-0.1.0-SNAPSHOT.jar" 
 
-  implicit val c: Context = Context(Artifact(scalacp), Artifact(scalametacp))
+  // implicit val c: Context = Context(Artifact(scalacp), Artifact(scalametacp))
+  implicit val c: Context = Context(Artifact(scalaLib))
 
   test("literal") {
      assert(eval(q"""{ def x = 2; x }""") == Val(2), true)
@@ -249,7 +251,7 @@ class TestEvaluate extends FunSuite {
   }
 
   test("identity lambda function") {
-    assert(eval(q"""{val x = (y: Int) => y; x apply (2) }""", true) == Val(2))
+    assert(eval(q"""{val x = (y: Int) => y; x(2) }""", true) == Val(2))
   }
 
   test("Macro 1 Scala Days") {

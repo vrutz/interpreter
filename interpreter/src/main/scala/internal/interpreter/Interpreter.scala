@@ -145,21 +145,27 @@ object Interpreter {
             }
 
           // Compiled function
-          case f.JvmMethod(className: String, fieldName: String, signature: String) =>
-            // Evaluate arguments
-            val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, env)
+          case f.JvmMethod(className: String, fieldName: String, signature: String) => 
+            // Special case for FunctionN.apply
+            if(fieldName == "apply" && jvmToFullName(className).matches("scala.Function[1-9]\\d*")) {
+              val (f: Function, callerEnv: Environment) = evaluate(name, env)
+              evaluateFunction(f, aexprs, callerEnv)
+            } else {
+              // Evaluate arguments
+              val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, env)
 
-            // Get class, and the right method
-            val c: Class[_] = Class.forName(jvmToFullName(className))
-            val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
+              // Get class, and the right method
+              val c: Class[_] = Class.forName(jvmToFullName(className))
+              val argsType: List[Class[_ <: Any]] = parsing(signature).arguments
 
-            val typeCompliantArgs = checkArgs(args, argsType).asInstanceOf[Array[Object]]
+              val typeCompliantArgs = checkArgs(args, argsType).asInstanceOf[Array[Object]]
 
-            val method = c.getMethod(fieldName, argsType: _*)
-            val module = c.getField("MODULE$").get(c)
+              val method = c.getMethod(fieldName, argsType: _*)
+              val module = c.getField("MODULE$").get(c)
 
-            // Call the method
-            (Val(method.invoke(module, typeCompliantArgs: _*)), argsEnv)
+              // Call the method
+              (Val(method.invoke(module, typeCompliantArgs: _*)), argsEnv)
+            }
 
           // User defined function
           case f.Zero =>
@@ -213,8 +219,6 @@ object Interpreter {
 
   private def evaluateLambda(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     val q"(..${args: Seq[Term.Param]}) => ${expr: Term}" = term
-    eprintln(args)
-    eprintln(expr)
     (Function(None, args, expr), env)
   }
 
@@ -266,7 +270,7 @@ object Interpreter {
 
   private[meta] def evaluate(term: Term, env: Environment = new Environment())
     (implicit ctx: Context): (Value, Environment) = {
-    eprintln(s"to evaluate: $term")
+    // eprintln(s"to evaluate: $term")
     // eprintln(s"Env: $env")
     val res = term match {
       // Literal

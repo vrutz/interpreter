@@ -10,7 +10,8 @@ sealed trait Value {
     // case Instance(array: Array[_]) => array.toList.toString
     // case Instance(jvmInstance) => jvmInstance.toString
     case l: Val => l.toString
-    case Function(name, args, code) => s"def $name($args) = $code"
+    case Function(None, args, code) => s"(${args.mkString(", ")}) => $code"
+    case Function(name, args, code) => s"def $name(${args.mkString(", ")}) = $code"
   }
 }
 
