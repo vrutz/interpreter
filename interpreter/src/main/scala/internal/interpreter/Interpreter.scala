@@ -244,7 +244,7 @@ object Interpreter {
     (implicit ctx: Context): (Value, Environment) = {
     // eprintln(s"to evaluate: $term")
     // eprintln(s"Env: $env")
-    val res = term match {
+    val res = term.desugar match {
       // Literal
       case x: Lit => eprintln("Evaluating literal"); evaluateLiteral(x, env)
 
