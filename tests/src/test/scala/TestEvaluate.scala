@@ -39,9 +39,9 @@ class TestEvaluate extends FunSuite {
       |   val x = Array(2, 3, 4, 5, 6, 7)
       |   x.update(0, 1)
       |   x update (1, 2)
-      |   x apply 0
+      |   (x apply 0) + x.apply(1)
       |}
-      """.stripMargin.parse[Term]) == Val(1))
+      """.stripMargin.parse[Term]) == Val(3))
   }
 
   test("simple main with args") {
@@ -125,19 +125,21 @@ class TestEvaluate extends FunSuite {
       """.stripMargin.parse[Term]) == Val(List(2)))
   }
 
+    test("Creating a List using apply") {
+    assert(eval("""
+      |{
+      |  val x = List.apply(2)
+      |  x
+      |}
+      """.stripMargin.parse[Term]) == Val(List(2)))
+  }
+
   test("Call methods on List") {
     assert(eval("""{
       |  val x = List(2)
       |  x apply (0)
       |}""".stripMargin.parse[Term]) == Val(2))
   }
-
-  // test("Other calls on List") {
-  //   assert(eval("""{
-  //     |  val x = List(2)
-  //     |  3 :: x
-  //     |}""".stripMargin.parse[Term]) == Val(List(3, 2)))
-  // }
 
   test("literal int") {
     assert(eval(q"1") match {
@@ -266,13 +268,14 @@ class TestEvaluate extends FunSuite {
   }
 
   test("quicksort reflection") {
-    assert(eval(q"""List(2, 4, 1, 3).sorted""") == Val(List(1, 2, 3, 4)))
+    assert(eval(q"""{val x = Array(2, 4, 1, 3); scala.util.Sorting.quicksort(x); x}""") == Val(List(1, 2, 3, 4)))
   }
 
   test("quicksort implementation") {
     assert(eval("""
       |{
-      | val x = Array(2, 1, 4, 3)
+      | val x = Array(2, 1)
+      |
       | def sort(xs: Array[Int]) = {
       |   def swap(i: Int, j: Int) {
       |     val t = xs.apply(i)
@@ -300,10 +303,10 @@ class TestEvaluate extends FunSuite {
       |
       |   sort1(0, xs.length - 1)
       | }
-      | 
+      |
       | sort(x)
       | x
-      |}""".stripMargin.parse[Term]) == Val(List(1, 2, 3, 4)))
+      |}""".stripMargin.parse[Term]) == Val(Array(1, 2, 3, 4)))
   }
 
   test("Macro 1 Scala Days") {

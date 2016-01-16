@@ -34,6 +34,31 @@ object Interpreter {
     }
   }
 
+  private def evaluateLoop(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    term match {
+      case q"while ($cond) $expr" =>
+        val (Val(condition), conditionEnv) = evaluate(cond, env)
+        var currentEnv = conditionEnv
+        var condEval = condition
+        var exprEval: Any = ()
+
+        while(condEval.asInstanceOf[Boolean]) {
+          val (Val(expression), exprEnv) = evaluate(expr, currentEnv)
+          exprEval = expression
+          currentEnv = exprEnv
+          val (Val(newCondition), newConditionEnv) = evaluate(cond, currentEnv)
+          currentEnv = newConditionEnv
+          condEval = newCondition
+        }
+
+        (Val(exprEval), currentEnv)
+    }
+  }
+
+  private def evaluateAssign(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
+    val q"${name: Term.Name} = $expr"
+  }
+
   private def evaluateBlock(term: m.Term.Block, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     term match {
       case q"{ ..$stats}" =>
@@ -250,6 +275,12 @@ object Interpreter {
 
       // Ifs
       case t: m.Term.If => eprintln("Evaluating if"); evaluateIf(t, env)
+
+      // Loops
+      case t: m.Term.While => eprintln("Evaluation While"); evaluateLoop(t, env)
+
+      // Variable assignment
+      case q"${name: Term.Name} = $expr" => eprintln("Evaluate assignment"); evaluateAssign(term, env)
 
       // Name
       case name: Term.Name =>
