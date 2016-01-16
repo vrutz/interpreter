@@ -25,7 +25,7 @@ object Interpreter {
   }
 
   private def evaluateIf(term: m.Term.If, env: Environment)(implicit ctx: Context): (Value, Environment) = {
-    val q"if ($cond) ${thn: Term} else ${els: Term}" = term 
+    val q"if ($cond) ${thn: Term} else ${els: Term}" = term
     val (Val(condVal: Boolean), e) = evaluate(cond, env)
     if(condVal) {
       evaluate(thn, e)
@@ -114,7 +114,7 @@ object Interpreter {
         val ctor = c.getDeclaredConstructor(argsTypes: _*)
         (Val(ctor.newInstance(args.map { case Val(l) => l })), argsEnv)
     }
-  } 
+  }
 
   private def evaluateApplication(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     require(term.isInstanceOf[m.Term.Apply] || term.isInstanceOf[m.Term.ApplyInfix] || term.isInstanceOf[m.Term.ApplyUnary])
@@ -145,7 +145,7 @@ object Interpreter {
             }
 
           // Compiled function
-          case f.JvmMethod(className: String, fieldName: String, signature: String) => 
+          case f.JvmMethod(className: String, fieldName: String, signature: String) =>
             // Special case for FunctionN.apply
             if(fieldName == "apply" && jvmToFullName(className).matches("scala.Function[1-9]\\d*")) {
               val (f: Function, callerEnv: Environment) = evaluate(name, env)
@@ -173,7 +173,7 @@ object Interpreter {
             evaluateFunction(env(Local(name)).asInstanceOf[Function], aexprs, env)
         }
 
-      case q"${expr0: Term}.${name: Term.Name}(${arg0: Term.Arg})" => 
+      case q"${expr0: Term}.${name: Term.Name}(${arg0: Term.Arg})" =>
         evaluateBinaryOp(expr0, name, arg0, env)
       case q"${expr0: Term} ${name: Term.Name} ${arg0: Term.Arg}" =>
         evaluateBinaryOp(expr0, name, arg0, env)
@@ -209,7 +209,7 @@ object Interpreter {
             case p"_" => Some(evaluate(expr, patEnv))
             case q"${name: Pat.Var.Term}" => Some(evaluate(expr, patEnv + (Local(name.name), scrutineeEval)))
             case p"$pname @ $apat" => apat match {
-                // case parg"_*" => 
+                // case parg"_*" =>
                 case parg"${pat1: meta.Pat}" => checkPat(pat1, patEnv + (Local(pname.name), scrutineeEval))
               }
             case p"$pat1 | $pat2" =>
@@ -322,7 +322,7 @@ object Interpreter {
     (implicit ctx: Context): (Array[Value], Environment) = {
     val argsBuffer: ListBuffer[Value] = ListBuffer[Value]()
       val argEnv: Environment = args.map(extractExprFromArg).foldLeft(env) {
-        case (e, expr: Term) => 
+        case (e, expr: Term) =>
           val (newExpr: Value, newEnv) = evaluate(expr, e)
           argsBuffer += newExpr
           newEnv
@@ -378,7 +378,7 @@ object Interpreter {
                     (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
                       case Val(l) => l
                     }: _*), argsEnv)
-                  case Val(o) => 
+                  case Val(o) =>
                     if(className.head == 'L') {
                       (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
                         case Val(l) => l
@@ -403,7 +403,7 @@ object Interpreter {
     val (argsValues: Array[Value], evArgsEnv: Environment) = evaluateArguments(aexprs, env)
 
     val argsEnv = (args zip argsValues.toSeq).foldLeft(evArgsEnv) {
-      case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) => 
+      case (e, (param"..$mods $paramname: $atpeopt = $expropt", av)) =>
         paramname match {
           case nameParam: Term.Name => e + (Local(nameParam), av)
         }
