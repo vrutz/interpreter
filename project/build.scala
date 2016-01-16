@@ -57,6 +57,7 @@ object build extends Build {
   ) settings (
     sharedSettings: _*
   ) settings (
+    testOptions in Test += Tests.Argument("-oDF"),
     libraryDependencies += "org.scalameta" %% "scalameta" % "0.1.0-SNAPSHOT",
     libraryDependencies += "org.scalameta" %% "scalahost" % "0.1.0-SNAPSHOT" cross CrossVersion.full,
     libraryDependencies += "org.scalatest" %% "scalatest" % "2.1.3" % "test",
