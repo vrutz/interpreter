@@ -21,6 +21,7 @@ final class Environment(stack: CallStack) extends Env {
   def push(frame: Frame): Environment = new Environment(frame :: stack)
   def pop: (Frame, Environment) = (stack.head, new Environment(stack.tail))
   def get: Frame = stack.head
+  def contains(name: Slot) = stack.exists(_.contains(name))
 
   override def toString = s"""Env(${this.get.mkString("\n")})"""
 }

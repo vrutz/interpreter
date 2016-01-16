@@ -120,7 +120,7 @@ object Interpreter {
     require(term.isInstanceOf[m.Term.Apply] || term.isInstanceOf[m.Term.ApplyInfix] || term.isInstanceOf[m.Term.ApplyUnary])
     term match {
       case q"${name: Term.Name}(..$aexprs)" =>
-        eprintln(s"$name: ${getFFI(name)}")
+        // eprintln(s"$name: ${getFFI(name)}")
         getFFI(name) match {
           // Compiled function
           case f.Intrinsic(className: String, methodName: String, signature: String) =>
@@ -178,39 +178,11 @@ object Interpreter {
       case q"${expr0: Term} ${name: Term.Name} ${arg0: Term.Arg}" =>
         evaluateBinaryOp(expr0, name, arg0, env)
 
+      case q"${expr: Term}.${name: Term.Name}(..${aexprs: Seq[Term.Arg]})" =>
+        evaluateOp(expr, name, aexprs, env)
       case q"${expr: Term} ${name: Term.Name} (..${aexprs: Seq[Term.Arg]})" =>
-        // Evaluate the caller
-        val (caller, callerEnv) = evaluate(expr, env)
-        // Evaluate the arguments
-        val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
+        evaluateOp(expr, name, aexprs, env)
 
-        // Find out what kind of function $name is
-        name.defn match {
-          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" =>
-            getFFI(name) match {
-              case f.Intrinsic(className: String, methodName: String, signature: String) =>
-                // If intrinsic, either an instance or an array
-                caller match {
-                  case Val(array) if array.getClass.isArray =>
-                    (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
-                      case Val(l) => l
-                    }: _*), argsEnv)
-                  case Val(o) => 
-                    if(className.head == 'L') {
-                      (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
-                        case Val(l) => l
-                      }), argsEnv)
-                    } else {
-                      (invokePrimitiveBinaryMethod(name.toString)(o, args(0) match {
-                        case Val(v) => v
-                      }), argsEnv)
-                    }
-                }
-              case f.JvmMethod(className: String, fieldName: String, signature: String) =>
-                ???
-              // case f.Zero => ??? // Should not happen without user defined classes
-            }
-        }
       case q"${expr: Term}(..$aexprs)" =>
         val (fun @ Function(name, params, code), evalEnv) = evaluate(expr, env)
         evaluateFunction(fun, aexprs, evalEnv)
@@ -280,11 +252,15 @@ object Interpreter {
       case t: m.Term.If => eprintln("Evaluating if"); evaluateIf(t, env)
 
       // Name
-      case name: Term.Name => eprintln("Evaluating name"); env(Local(name)) match {
-        case v: Val => (v, env)
-        case Function(name, Nil, code) => evaluate(code, env)
-        case f: Function => (f, env)
-      }
+      case name: Term.Name =>
+        eprintln("Evaluating name")
+        eprintln(s"Looking for $name in $env")
+        eprintln(s"""$name is ${if(!env.contains(Local(name))) "not" else ""} in the environment""")
+        env(Local(name)) match {
+          case v: Val => (v, env)
+          case Function(name, Nil, code) => evaluate(code, env)
+          case f: Function => (f, env)
+        }
 
       // Contructors
       case q"${name: Ctor.Name}[..$_](..$aexprs)" => eprintln("Evaluating constructor"); evaluateConstructor(term, env)
@@ -383,6 +359,42 @@ object Interpreter {
         }
     }
   }
+
+  private def evaluateOp(expr: Term, name: Term.Name, aexprs: Seq[Term.Arg], env: Environment)
+    (implicit ctx: Context) = {
+      // Evaluate the caller
+        val (caller, callerEnv) = evaluate(expr, env)
+        // Evaluate the arguments
+        val (args: Array[Value], argsEnv: Environment) = evaluateArguments(aexprs, callerEnv)
+
+        // Find out what kind of function $name is
+        name.defn match {
+          case q"..$mods def $name[..$tparams](..$paramss): $tpeopt = $expr" =>
+            getFFI(name) match {
+              case f.Intrinsic(className: String, methodName: String, signature: String) =>
+                // If intrinsic, either an instance or an array
+                caller match {
+                  case Val(array) if array.getClass.isArray =>
+                    (invokeArrayMethod(name.toString)(array.asInstanceOf[AnyRef], args.map {
+                      case Val(l) => l
+                    }: _*), argsEnv)
+                  case Val(o) => 
+                    if(className.head == 'L') {
+                      (invokeObjectBinaryMethod(name.toString)(o, args(0) match {
+                        case Val(l) => l
+                      }), argsEnv)
+                    } else {
+                      (invokePrimitiveBinaryMethod(name.toString)(o, args(0) match {
+                        case Val(v) => v
+                      }), argsEnv)
+                    }
+                }
+              case f.JvmMethod(className: String, fieldName: String, signature: String) =>
+                ???
+              // case f.Zero => ??? // Should not happen without user defined classes
+            }
+        }
+    }
 
   private def evaluateFunction(fun: Function, aexprs: Seq[Term.Arg], env: Environment)
     (implicit ctx: Context) = {

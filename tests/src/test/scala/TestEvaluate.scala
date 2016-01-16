@@ -37,8 +37,9 @@ class TestEvaluate extends FunSuite {
     assert(eval("""
       |{
       |   val x = Array(2, 3, 4, 5, 6, 7)
-      |   x update (0, 1)
-      |   x apply (0)
+      |   x.update(0, 1)
+      |   x update (1, 2)
+      |   x apply 0
       |}
       """.stripMargin.parse[Term]) == Val(1))
   }
@@ -48,11 +49,11 @@ class TestEvaluate extends FunSuite {
             |object Test {
             |  def main(args: Array[String]): Unit = {
             |    val x = args.length
-            |    args update (0, "Hello")
+            |    args.update(0, "Hello")
             |    val y = x * x
             |    println(y)
             |    println(args.length)
-            |    println((args apply 0) + x)
+            |    println(args.apply(0) + x)
             |  }
             |}
             """.stripMargin.parse[Stat]
@@ -252,6 +253,57 @@ class TestEvaluate extends FunSuite {
 
   test("identity lambda function") {
     assert(eval(q"""{val x = (y: Int) => y; x(2) }""", true) == Val(2))
+  }
+
+  test("map on List with user defined function") {
+    assert(eval("""
+      |{
+      |  def multiplyByTwo(x: Int): Int = 2 * x
+      |
+      |  val y = List(1, 2, 3)
+      |  y.map(multiplyByTwo)
+      |}""".stripMargin.parse[Term]) == Val(List(2, 4, 6)))
+  }
+
+  test("quicksort reflection") {
+    assert(eval(q"""List(2, 4, 1, 3).sorted""") == Val(List(1, 2, 3, 4)))
+  }
+
+  test("quicksort implementation") {
+    assert(eval("""
+      |{
+      | val x = Array(2, 1, 4, 3)
+      | def sort(xs: Array[Int]) = {
+      |   def swap(i: Int, j: Int) {
+      |     val t = xs.apply(i)
+      |     xs.update(i, xs.apply(j))
+      |     xs.update(j, t)
+      |   }
+      |
+      |   def sort1(l: Int, r: Int): Unit = {
+      |     val pivot = xs.apply((l + r) / 2)
+      |     var i = l
+      |     var j = r
+      |     while (i <= j) {
+      |       while (xs.apply(i) < pivot) i = i + 1
+      |       while (xs.apply(j) > pivot) j = j - 1
+      |
+      |       if (i <= j) {
+      |         swap(i, j)
+      |         i = i + 1
+      |         j = j - 1
+      |       }
+      |     }
+      |     if (l < j) sort1(l, j)
+      |     if (j < r) sort1(i, r)
+      |   }
+      |
+      |   sort1(0, xs.length - 1)
+      | }
+      | 
+      | sort(x)
+      | x
+      |}""".stripMargin.parse[Term]) == Val(List(1, 2, 3, 4)))
   }
 
   test("Macro 1 Scala Days") {
