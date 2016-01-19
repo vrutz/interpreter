@@ -57,7 +57,9 @@ object Interpreter {
   }
 
   private def evaluateAssign(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
-    val q"${name: Term.Name} = $expr"
+    val q"${name: Term.Name} = $expr" = term
+    val (evalExpr: Value, evalEnv: Environment) = evaluate(expr, env)
+    (evalExpr, evalEnv + (Local(name), evalExpr))
   }
 
   private def evaluateBlock(term: m.Term.Block, env: Environment)(implicit ctx: Context): (Value, Environment) = {
