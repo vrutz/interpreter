@@ -38,10 +38,10 @@ class TestEvaluate extends FunSuite {
       |{
       |   val x = Array(2, 3, 4, 5, 6, 7)
       |   x update (0, 1)
-      |   x update (1, 2)
-      |   x apply (0)
+      |   x.update(1, 2)
+      |   (x apply (0)) + x.apply(1)
       |}
-      """.stripMargin.parse[Term]) == Val(1))
+      """.stripMargin.parse[Term]) == Val(3))
   }
 
   test("simple main with args") {
