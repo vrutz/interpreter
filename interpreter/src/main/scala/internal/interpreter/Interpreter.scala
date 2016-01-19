@@ -381,7 +381,7 @@ object Interpreter {
     }
 
   private def checkArgs(args: Array[Value], argsType: List[Class[_ <: Any]]): Array[Any] = {
-    require(args.length >= argsType.size)
+    require(args.length >= argsType.size - 1)
     if (args.length == argsType.size) {
       if (box(argsType.last).isAssignableFrom(extractArgs(args)(args.length - 1).getClass)) {
         extractArgs(args)
