@@ -298,10 +298,10 @@ object Interpreter {
         evaluateApplication(expr, argss, env)
 
       // Infix application
-      case q"${expr: Term} ${name: Term.Name} ${arg0: Term.Arg}" =>
+      case app: m.Term.ApplyInfix =>
         eprintln("Evaluating apply infix")
-        val emulation = q"$expr.$name".asInstanceOf[m.Term].withAttrs(name.tpe).setTypechecked
-        val argss = Seq(Seq(arg0))
+        val emulation = q"${app.lhs}.${app.op}".asInstanceOf[m.Term].withAttrs(app.op.tpe).setTypechecked
+        val argss = Seq(app.args)
         // TODO: this doesn't work correctly with right-associative operators
         evaluateApplication(emulation, argss, env)
 
