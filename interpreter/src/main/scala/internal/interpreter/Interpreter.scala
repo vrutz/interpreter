@@ -213,7 +213,7 @@ object Interpreter {
 
     val (scrutineeEval, scrutineeEnv) = evaluate(scrutinee, env)
 
-    eprintln(s"scrutinee: $scrutineeEval")
+    // eprintln(s"scrutinee: $scrutineeEval")
 
     val Some(result) = cases.foldLeft(None: Option[(Value, Environment)]) {
       case (None, p"case $pat0 if $expropt => $expr") =>
@@ -255,8 +255,8 @@ object Interpreter {
   private[meta] def evaluate(term0: Term, env: Environment = new Environment())
     (implicit ctx: Context): (Value, Environment) = {
     val term = term0.desugar
-    // eprintln(s"to evaluate: $term")
-    // eprintln(s"Env: $env")
+    eprintln(s"to evaluate: $term")
+    eprintln(s"Env: $env")
     val res = term match {
       // Literal
       case x: Lit => eprintln("Evaluating literal"); evaluateLiteral(x, env)

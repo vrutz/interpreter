@@ -16,7 +16,7 @@ import internal.representations._
 class TestEvaluate extends FunSuite {
   val scalaLib = sys.props("sbt.paths.scalalibrary.classes")
   val scalacp = "/Users/rutz/.ivy2/cache/org.scala-lang/scala-library/jars/scala-library-2.11.7.jar"
-  val scalametacp = "/Users/rutz/.ivy2/cache/org.scalameta/scalameta_2.11/jars/scalameta_2.11-0.1.0-SNAPSHOT.jar" 
+  val scalametacp = "/Users/rutz/.ivy2/cache/org.scalameta/scalameta_2.11/jars/scalameta_2.11-0.1.0-SNAPSHOT.jar"
 
   // implicit val c: Context = Context(Artifact(scalacp), Artifact(scalametacp))
   implicit val c: Context = Context(Artifact(scalaLib))
@@ -37,11 +37,10 @@ class TestEvaluate extends FunSuite {
     assert(eval("""
       |{
       |   val x = Array(2, 3, 4, 5, 6, 7)
-      |   x update (0, 1)
-      |   x.update(1, 2)
-      |   (x apply (0)) + x.apply(1)
+      |   x(0) = 1
+      |   x(0)
       |}
-      """.stripMargin.parse[Term]) == Val(3))
+      """.stripMargin.parse[Term]) == Val(1))
   }
 
   test("simple main with args") {
@@ -213,11 +212,75 @@ class TestEvaluate extends FunSuite {
       |}""".stripMargin.parse[Term]) == Val(3))
   }
 
-  test("match with multiple matches") {
+  test("match with multiple matches but early match") {
     assert(eval("""
       |2 match {
       |  case x if x == 2 => x + 1
       |  case x => x + 2
+      |  case 3 => 3
+      |  case 0 => 1
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case _ => 0
+      |}""".stripMargin.parse[Term]) == Val(3))
+  }
+
+  test("match with multiple matches but late match") {
+    assert(eval("""
+      |2 match {
+      |  case x if x < 0 => x + 2
+      |  case 3 => 3
+      |  case 0 => 1
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case y if y == 4 => y + 4
+      |  case x if x == 2 => x + 1
       |  case _ => 0
       |}""".stripMargin.parse[Term]) == Val(3))
   }
@@ -247,7 +310,6 @@ class TestEvaluate extends FunSuite {
     assert(eval("""
       |{
       |  val x = List(2)
-      |
       |  x.length
       |}""".stripMargin.parse[Term]) == Val(1))
   }
@@ -256,8 +318,71 @@ class TestEvaluate extends FunSuite {
     assert(eval(q"""{val x = (y: Int) => y; x(2) }""") == Val(2))
   }
 
+  test("more complicated lambda function") {
+    assert(eval("""
+      |{
+      |  val x = (z: Int) => z match {
+      |      case 0 => List(0)
+      |      case y if y < 10 => List(y, y - 1, y - 2)
+      |      case a: Int => List(a, a + 1, z + 2)
+      |      case _ => List(-1)  
+      |    }
+      |  x(8)
+      |}""".stripMargin.parse[Term]) == Val(List(8, 7, 6)))
+  }
+
+  test("factorial lambda function") {
+    assert(eval("""
+      |{
+      |  val x: Int => Int = (z: Int) => z match {
+      |      case 0 => 0
+      |      case y if y == 1 => y
+      |      case a: Int => a * x(a - 1)
+      |  }
+      |  x(3)
+      |}""".stripMargin.parse[Term]) == Val(6))
+  }
+
+  test("assignment variable"){
+    assert(eval(q"""{ var x = 1; x = 2; x }""") == Val(2))
+  }
+
+  test("assignement variable of instance") {
+    assert(eval(q"""{ var x = List(1); x = List(2); x }""") == Val(List(2)))
+  }
+
   test("quicksort reflection") {
-    assert(eval(q"""{val x = Array(2, 4, 1, 3); scala.util.Sorting.quickSort(x); x}""") == Val(Array(1, 2, 3, 4)))
+    val Val(res: Array[Int]) = eval(q"""{val x = Array(2, 4, 1, 3); scala.util.Sorting.quickSort(x); x}""")
+    assert(res.zip(Array(1, 2, 3, 4)) forall {
+        case (a, b) => a == b
+      })
+  }
+
+  // test("compiled quicksort") {
+  //   val classpath = sys.props("sbt.paths.scrutinee.classes")
+  //   val sourcepath = sys.props("sbt.paths.scrutinee.sources")
+  //   implicit val c = Context(Artifact(classpath, sourcepath))
+  //   val Val(res: Array[Int]) = eval(q"""{val x = Array(2, 1, 3, 4); O.quicksort(x); x}""")
+  //   assert(res.zip(Array(1, 2, 3, 4)) forall {
+  //       case (a, b) => a == b
+  //     })
+  // }
+
+  test("println call") {
+    assert(eval(q"""{println("Using println"); ()}""") == Val(()))
+  }
+
+  test("example presentation") {
+    assert(eval(""" 
+      |{ 
+      |  val x = Array(0, 1, 2)
+      |  x(0) = 2
+      |  println(x(1) + x(0))
+      |  val y = List(1, 2, 3) 
+      |  println(y.head + y.length) 
+      |  val z = (a: List[Int]) => a.tail.head + a.length
+      |  z(y)
+      |} """.stripMargin.parse[Term]) == Val(5))
   }
 
   // test("quicksort implementation") {
@@ -267,18 +392,18 @@ class TestEvaluate extends FunSuite {
   //     |
   //     | def sort(xs: Array[Int]) = {
   //     |   def swap(i: Int, j: Int) {
-  //     |     val t = xs.apply(i)
-  //     |     xs.update(i, xs.apply(j))
-  //     |     xs.update(j, t)
+  //     |     val t = xs(i)
+  //     |     xs(i) = xs.apply(j)
+  //     |     xs(j) = t
   //     |   }
   //     |
   //     |   def sort1(l: Int, r: Int): Unit = {
-  //     |     val pivot = xs.apply((l + r) / 2)
+  //     |     val pivot = xs((l + r) / 2)
   //     |     var i = l
   //     |     var j = r
   //     |     while (i <= j) {
-  //     |       while (xs.apply(i) < pivot) i = i + 1
-  //     |       while (xs.apply(j) > pivot) j = j - 1
+  //     |       while (xs(i) < pivot) i = i + 1
+  //     |       while (xs(j) > pivot) j = j - 1
   //     |
   //     |       if (i <= j) {
   //     |         swap(i, j)
@@ -298,34 +423,34 @@ class TestEvaluate extends FunSuite {
   //     |}""".stripMargin.parse[Term]) == Val(Array(1, 2, 3, 4)))
   // }
 
-  test("Macro 1 Scala Days") {
-    eval("""
-      |{
-      |  def adtImpl(T: Type)(implicit c: Context) = {
-      |    T match {
-      |      case ref: Type.Ref =>
-      |        def validateLeaf(leaf: Member) = {
-      |          if (!leaf.isFinal) abort(s"${leaf.name} is not final")
-      |          if (!leaf.isCase) abort(s"${leaf.name} is not sealed")
-      |          if (!leaf.tparams.isEmpty) abort(s"${leaf.name} is not monomorphic")
-      |        }
-      |        val defn = ref.defn
-      |        if (defn.isClass || defn.isObject) {
-      |          validateLeaf(defn)
-      |        } else if (defn.isTrait) {
-      |          if (defn.isSealed) defn.submembers.foreach(validateLeaf)
-      |          else abort(s"${defn.name} is not sealed")
-      |        } else {
-      |          abort(s"unsupported ref to ${defn.name}")
-      |        }
-      |        q"new Adt[$T]{}"
-      |      case _ =>
-      |        abort(s"unsupported type $T")
-      |    }
-      |  }
-      |}
-      """.stripMargin.parse[Term])
-  }
+  // test("Macro 1 Scala Days") {
+  //   eval("""
+  //     |{
+  //     |  def adtImpl(T: Type)(implicit c: Context) = {
+  //     |    T match {
+  //     |      case ref: Type.Ref =>
+  //     |        def validateLeaf(leaf: Member) = {
+  //     |          if (!leaf.isFinal) abort(s"${leaf.name} is not final")
+  //     |          if (!leaf.isCase) abort(s"${leaf.name} is not sealed")
+  //     |          if (!leaf.tparams.isEmpty) abort(s"${leaf.name} is not monomorphic")
+  //     |        }
+  //     |        val defn = ref.defn
+  //     |        if (defn.isClass || defn.isObject) {
+  //     |          validateLeaf(defn)
+  //     |        } else if (defn.isTrait) {
+  //     |          if (defn.isSealed) defn.submembers.foreach(validateLeaf)
+  //     |          else abort(s"${defn.name} is not sealed")
+  //     |        } else {
+  //     |          abort(s"unsupported ref to ${defn.name}")
+  //     |        }
+  //     |        q"new Adt[$T]{}"
+  //     |      case _ =>
+  //     |        abort(s"unsupported type $T")
+  //     |    }
+  //     |  }
+  //     |}
+  //     """.stripMargin.parse[Term])
+  // }
 
   def evalMain(stat0: Stat, env: EnvImpl = Env())(implicit ctx: Context): Value = {
     val stat = ctx.typecheck(stat0).asInstanceOf[Stat]
