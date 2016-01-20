@@ -1,4 +1,6 @@
-object O {
+package test
+
+object Test {
   def quicksort(xs: Array[Int]) = {
     def swap(i: Int, j: Int) {
       val t = xs(i)

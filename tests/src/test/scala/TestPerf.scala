@@ -15,7 +15,7 @@ import internal.representations._
 
 class TestPerf extends FunSuite {
   val scala = sys.props("sbt.paths.scalalibrary.classes")
-  val classes = "/Users/rutz/Developer/scrutinee/target/scala-2.10/classes"
+  val classes = "/Users/rutz/Developer/interpreter/scrutinee/target/scala-2.10/classes"
 
   test("quicksort compiled") {
     implicit val c: Context = Context(Artifact(scala+":"+classes))
