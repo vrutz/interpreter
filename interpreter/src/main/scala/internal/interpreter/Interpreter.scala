@@ -91,7 +91,7 @@ object Interpreter {
   private def evaluateSelection(term: Term, env: Environment)(implicit ctx: Context): (Value, Environment) = {
     val q"${expr: Term}.${name: Term.Name}" = term
 
-    eprintln(getFFI(name))
+    // eprintln(s"$name: ${getFFI(name)}")
     getFFI(name) match {
       case f.Intrinsic(className: String, methodName: String, signature: String) =>
         val (Val(evalVal), envExpr) = evaluate(expr, env)
@@ -275,6 +275,7 @@ object Interpreter {
         eprintln("Evaluating name")
         eprintln(s"Looking for $name in $env")
         eprintln(s"""$name is ${if(!env.contains(Local(name))) "not" else ""} in the environment""")
+        eprintln(s"$name: ${getFFI(name)}")
         env(Local(name)) match {
           case v: Val => (v, env)
           case Function(name, Nil, code) => evaluate(code, env)

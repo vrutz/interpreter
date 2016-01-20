@@ -382,46 +382,8 @@ class TestEvaluate extends FunSuite {
       |  println(y.head + y.length) 
       |  val z = (a: List[Int]) => a.tail.head + a.length
       |  z(y)
-      |} """.stripMargin.parse[Term]) == Val(5))
+      |} """.stripMargin.parse[Term]) == Val(5), true)
   }
-
-  // test("quicksort implementation") {
-  //   assert(eval("""
-  //     |{
-  //     | val x = Array(2, 1, 4, 3)
-  //     |
-  //     | def sort(xs: Array[Int]) = {
-  //     |   def swap(i: Int, j: Int) {
-  //     |     val t = xs(i)
-  //     |     xs(i) = xs.apply(j)
-  //     |     xs(j) = t
-  //     |   }
-  //     |
-  //     |   def sort1(l: Int, r: Int): Unit = {
-  //     |     val pivot = xs((l + r) / 2)
-  //     |     var i = l
-  //     |     var j = r
-  //     |     while (i <= j) {
-  //     |       while (xs(i) < pivot) i = i + 1
-  //     |       while (xs(j) > pivot) j = j - 1
-  //     |
-  //     |       if (i <= j) {
-  //     |         swap(i, j)
-  //     |         i = i + 1
-  //     |         j = j - 1
-  //     |       }
-  //     |     }
-  //     |     if (l < j) sort1(l, j)
-  //     |     if (j < r) sort1(i, r)
-  //     |   }
-  //     |
-  //     |   sort1(0, xs.length - 1)
-  //     | }
-  //     |
-  //     | sort(x)
-  //     | x
-  //     |}""".stripMargin.parse[Term]) == Val(Array(1, 2, 3, 4)))
-  // }
 
   // test("Macro 1 Scala Days") {
   //   eval("""
